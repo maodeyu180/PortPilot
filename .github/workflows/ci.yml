@@ -50,6 +50,7 @@ jobs:
           fi
           sh -n scripts/setup.sh
           python3 -m py_compile tests/docker_smoke.py tests/proxy_auth.py
+          docker compose --env-file /dev/null -f compose.release.yaml config --quiet
       - name: Build UI and run Go race tests
         run: make test
       - name: Start isolated Docker stack

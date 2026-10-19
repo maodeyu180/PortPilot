@@ -24,6 +24,32 @@ http://用户名:密码@服务器:20001
 socks5h://用户名:密码@服务器:20001
 ```
 
+## Docker Compose 启动（Linux，推荐）
+
+直接使用已发布的 Docker Hub 镜像 `maodeyu/portpilot:0.1.2`，支持 amd64 / arm64。服务器只需要 Docker Engine、Docker Compose v2 和 curl，**不用 clone 源码，也不用安装 Node 或 Go**。
+
+在服务器下载一份 Compose 文件即可启动：
+
+```sh
+mkdir portpilot
+cd portpilot
+curl -fsSL https://raw.githubusercontent.com/maodeyu180/PortPilot/main/compose.release.yaml -o compose.yaml
+docker compose pull
+docker compose up -d --wait
+```
+
+打开 `http://服务器IP:8787`，首次访问时设置并确认至少 12 个字符的管理密码。代理账号密码会独立随机生成，在面板「访问认证」中查看或修改。
+
+1. 在「运行配置」填写客户端能访问的入口 IP / 域名。
+2. 导入订阅，点击「应用配置」。Compose 已包含 Mihomo 内核。
+3. 测试节点后，在「导出代理」复制 HTTP / SOCKS5H 地址。
+
+**每个代理端口都强制使用账号密码，HTTP 与 SOCKS5 共用一组凭据。** 管理密码与代理密码互相独立。
+
+首次启动不需要 `.env`。要提前指定管理密码、调整管理端口或切换到 GHCR，可在 `compose.yaml` 旁创建 `.env`，见 [部署说明](docs/deployment.md)。数据保存在 `portpilot_data` 命名卷中，升级和重建容器会保留。
+
+原始文件：[镜像部署 Compose](compose.release.yaml)。源码构建方式见下方「从源码构建」。
+
 ## 功能
 
 - 服务概览展示节点数量、测试通过率、最近一次延迟分布、可用入口与操作记录，支持点击指标筛选节点。
@@ -74,28 +100,18 @@ socks5h://用户名:密码@服务器:20001
 
 原图与更新说明见 [截图目录](docs/screenshots/README.md)。
 
-## Docker 启动（Linux，推荐）
+## 从源码构建
 
-安装 Docker Engine 和 Docker Compose v2 后，在项目目录执行：
+开发或修改代码时，可以克隆仓库并自行构建 Docker 镜像：
 
 ```sh
+git clone https://github.com/maodeyu180/PortPilot.git
+cd PortPilot
 sh scripts/setup.sh
 docker compose up -d --build --wait
 ```
 
-打开 `http://服务器IP:8787`。默认首次访问会引导设置管理密码：输入至少 12 个字符的密码并再次确认，即可进入控制台，没有共用的默认密码。部署后应及时完成首次设置；也可提前指定管理密码。
-
-也可提前在 `.env` 中填写 `PORTPILOT_ADMIN_PASSWORD`，跳过首次设置。脚本不覆盖已有 `.env`；已设置的密码保存在数据卷内，留空环境变量或重建容器不会重置密码。
-
-1. 在「运行配置」设置客户端能访问的入口 IP / 域名。
-2. 导入订阅，点击「应用配置」。Mihomo 已由 Compose 自动启动，无需手动安装。
-3. 在「访问认证」查看代理账号密码，测试节点后导出地址。
-
-**每个代理端口都强制使用账号密码，HTTP 与 SOCKS5 共用一组凭据。** 代理密码首次自动生成，与面板管理密码独立；不提供免认证模式。
-
-数据保存在 Compose 的 `data` 命名卷中（默认卷名 `portpilot_data`），不会写入镜像。`init` 服务完成后退出，面板和内核分别运行。升级、备份、迁移与依赖下载源设置见 [部署说明](docs/deployment.md)。
-
-正式版本支持从 GHCR 拉取 amd64 / arm64 镜像，也可配置 Docker Hub 同步发布。镜像由版本标签触发 GitHub Actions 发布；首次发布和包公开完成后可使用，见 [版本发布与镜像安装](docs/releasing.md)。
+仓库中的 `compose.yaml` 用于源码构建，`compose.release.yaml` 用于直接拉取镜像。初始化脚本只创建私有 `.env`，重复执行不会覆盖已有文件。镜像发布流程见 [版本与镜像发布](docs/releasing.md)。
 
 ## 本地启动
 

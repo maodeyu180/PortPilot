@@ -1,0 +1,81 @@
+# Standalone deployment with published images. Save this file as compose.yaml.
+name: portpilot
+
+x-portpilot: &portpilot
+  image: ${PORTPILOT_IMAGE_REPOSITORY:-maodeyu/portpilot}:${PORTPILOT_IMAGE_TAG:-0.1.2}
+  user: "10001:10001"
+  read_only: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  volumes:
+    - data:/app/data
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  init:
+    <<: *portpilot
+    # Initialization has no network access and cannot open a host port.
+    network_mode: none
+    restart: "no"
+    command: ["-init", "-data", "/app/data"]
+    environment:
+      PORTPILOT_PUBLIC_HOST: ${PORTPILOT_PUBLIC_HOST:-127.0.0.1}
+      PORTPILOT_CONTROLLER_URL: ${PORTPILOT_CONTROLLER_URL:-http://127.0.0.1:9090}
+      PORTPILOT_PROXY_USERNAME: ${PORTPILOT_PROXY_USERNAME:-}
+      PORTPILOT_PROXY_PASSWORD: ${PORTPILOT_PROXY_PASSWORD:-}
+    mem_limit: 64m
+
+  mihomo:
+    image: ${MIHOMO_IMAGE:-metacubex/mihomo:v1.19.32}
+    restart: unless-stopped
+    # Linux host networking supports dynamic proxy listeners.
+    network_mode: host
+    user: "10001:10001"
+    command: ["-d", "/app/data", "-f", "/app/data/mihomo.yaml"]
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    volumes:
+      - data:/app/data
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 256m
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  portpilot:
+    <<: *portpilot
+    restart: unless-stopped
+    network_mode: host
+    command: ["-listen", "${PORTPILOT_LISTEN:-0.0.0.0:8787}", "-data", "/app/data"]
+    environment:
+      PORTPILOT_ADMIN_PASSWORD: ${PORTPILOT_ADMIN_PASSWORD:-}
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "portpilot", "-healthcheck", "-listen", "${PORTPILOT_LISTEN:-0.0.0.0:8787}"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    mem_limit: 128m
+
+volumes:
+  data:
