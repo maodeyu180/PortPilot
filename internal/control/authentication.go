@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// The caller holds loginMu, covering both login and first-time setup attempts.
+// The caller holds loginMu.
 func (a *App) allowAuthAttempt(w http.ResponseWriter, r *http.Request) (string, bool) {
 	now := time.Now()
 	key, _, err := net.SplitHostPort(r.RemoteAddr)
@@ -68,22 +68,17 @@ func (a *App) login(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) setup(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		SetupToken      string `json:"setupToken"`
 		Password        string `json:"password"`
 		ConfirmPassword string `json:"confirmPassword"`
 	}
 	if decode(r, &body) != nil {
-		fail(w, 400, "请填写初始化码与管理密码")
+		fail(w, 400, "请填写管理密码与确认密码")
 		return
 	}
 	a.loginMu.Lock()
 	defer a.loginMu.Unlock()
 	if !a.auth.setupRequired() {
 		fail(w, 409, errAlreadyInitialized.Error())
-		return
-	}
-	key, ok := a.allowAuthAttempt(w, r)
-	if !ok {
 		return
 	}
 	if err := validateAdminPassword(body.Password); err != nil {
@@ -94,16 +89,14 @@ func (a *App) setup(w http.ResponseWriter, r *http.Request) {
 		fail(w, 400, "两次输入的密码不一致")
 		return
 	}
-	err := a.auth.initialize(body.SetupToken, body.Password)
-	if errors.Is(err, errInvalidSetupToken) {
-		a.loginFailures[key] = append(a.loginFailures[key], time.Now())
-		fail(w, 401, err.Error())
+	err := a.auth.initialize(body.Password)
+	if errors.Is(err, errAlreadyInitialized) {
+		fail(w, 409, err.Error())
 		return
 	}
 	if err != nil {
 		fail(w, 500, "无法保存管理密码，请检查数据目录是否可写后重试")
 		return
 	}
-	delete(a.loginFailures, key)
 	a.authenticated(w, r)
 }

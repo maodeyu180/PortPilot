@@ -46,7 +46,6 @@ def main():
     parser.add_argument("--base-url", default="http://127.0.0.1:18787")
     parser.add_argument("--env-file", default=".env")
     parser.add_argument("--proxy-port", type=int, default=31001)
-    parser.add_argument("--setup-token-file", help="private admin.json copied from this isolated test container")
     args = parser.parse_args()
     base = args.base_url.rstrip("/")
     address = urllib.parse.urlsplit(base)
@@ -68,13 +67,9 @@ def main():
     api("/state", expected=401)
     session = api("/session")
     if session.get("setupRequired"):
-        assert args.setup_token_file, "fresh setup requires the isolated container's setup token file"
-        token = json.loads(Path(args.setup_token_file).read_text())["setupToken"]
-        assert len(token) == 64, "invalid initialization code"
         password = secrets.token_hex(24)
-        setup = {"setupToken": token, "password": password, "confirmPassword": password}
+        setup = {"password": password, "confirmPassword": password}
         api("/login", "POST", {"password": ""}, expected=409)
-        api("/setup", "POST", {**setup, "setupToken": "wrong-code"}, expected=401)
         api("/setup", "POST", {**setup, "password": "short", "confirmPassword": "short"}, expected=400)
         api("/setup", "POST", {**setup, "confirmPassword": "does-not-match"}, expected=400)
         assert api("/session")["setupRequired"], "invalid setup unlocked the panel"

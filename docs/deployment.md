@@ -13,7 +13,7 @@
 ├── admin.env             管理密码，root:root 0600
 └── data/                 portpilot:portpilot 0700
     ├── state.json        导入后生成，0600
-    ├── admin.json        管理密码加盐哈希 / 首次初始化码，0600
+    ├── admin.json        管理密码加盐哈希 / 待初始化状态，0600
     └── mihomo.yaml       下载 / 应用配置，0600
 ```
 
@@ -31,7 +31,7 @@ systemctl daemon-reload
 systemctl enable --now portpilot.service
 ```
 
-访问 `http://服务器IP:8787`。未指定管理密码时，从 `journalctl -u portpilot` 中复制 `PORTPILOT_SETUP_TOKEN`，在网页完成首次设置。登录后导入订阅并设置入口公网 IP。初次启动内核前，从运行配置页下载 YAML，保存到 `/opt/portpilot/data/mihomo.yaml`，权限与所有者按上面调整。
+访问 `http://服务器IP:8787`。未指定管理密码时，在网页直接设置并确认管理密码。登录后导入订阅并设置入口公网 IP。初次启动内核前，从运行配置页下载 YAML，保存到 `/opt/portpilot/data/mihomo.yaml`，权限与所有者按上面调整。
 
 下载与你的操作系统 / CPU 对应的 [Mihomo 官方发行版](https://github.com/MetaCubeX/mihomo/releases)，核对官方校验信息后放入 `/opt/portpilot/mihomo`。安装 `examples/portpilot-mihomo.service` 并启动：
 
@@ -71,13 +71,9 @@ docker compose up -d --build --wait
 
 初始化脚本只创建权限为 `0600` 的 `.env`，管理密码默认留空。重复执行不覆盖已有文件。也可手动复制 `.env.example`，提前填写至少 12 个字符的独立管理密码，跳过首次设置。
 
-访问 `http://服务器IP:8787`，按网页提示设置管理密码。所需的一次性初始化码显示在启动日志中：
+访问 `http://服务器IP:8787`，在首次设置页填写至少 12 个字符的管理密码并再次确认，保存后自动进入控制台，无需查看启动日志。设置完成前，订阅、节点、配置导出等管理接口全部锁定，后台订阅同步也不会开始。
 
-```sh
-docker compose logs portpilot
-```
-
-复制 `PORTPILOT_SETUP_TOKEN` 后面的 64 位值，在网页填写初始化码、新密码与确认密码。初始化码每个安装独立，只能使用一次；它不会通过网页接口返回。设置完成前，订阅、节点、配置导出等管理接口全部锁定，后台订阅同步也不会开始。
+首次设置接口不要求登录，第一次成功提交即确定管理密码。部署后请及时完成设置；需要避免公开初始化页面时，提前配置 `PORTPILOT_ADMIN_PASSWORD`。
 
 登录后在「运行配置」填写客户端可访问的入口 IP，导入订阅，点击「应用配置」，再测试并导出地址。内核已经自动启动，初始空配置不会开放代理端口，不需要手动下载或启动 Mihomo。
 
@@ -91,9 +87,9 @@ docker compose logs portpilot
 
 三者互相独立。每一个 mixed 监听入口都会显式写入非空 `users`，HTTP 与 SOCKS5 都需要认证。用户名为空或密码不足 8 位时，保存与配置生成都会拒绝；没有免认证开关。修改代理凭据后，保存并点击「应用配置」，再更新客户端。
 
-管理密码设置后，清空环境变量或重建容器仍使用数据卷里的密码，不会重新开放初始化。非空 `PORTPILOT_ADMIN_PASSWORD` 在启动时优先生效，服务器管理员可用它恢复或更换管理密码；环境变量留空后使用最近保存的密码。初始化码在设置成功后立即从认证文件移除，旧日志里的码也不能再次使用。认证文件损坏时程序拒绝启动，不会悄悄回到首次设置。
+管理密码设置后，清空环境变量或重建容器仍使用数据卷里的密码，不会重新开放初始化。非空 `PORTPILOT_ADMIN_PASSWORD` 在启动时优先生效，服务器管理员可用它恢复或更换管理密码；环境变量留空后使用最近保存的密码。首次设置只能成功一次，完成后该接口无法再次修改密码。认证文件损坏时程序拒绝启动，不会悄悄回到首次设置。
 
-备份时保留整个数据卷，包括 `admin.json`。不要公开包含待使用初始化码的启动日志；通过公网使用首次设置或登录时，应使用 HTTPS 或 SSH 隧道。
+备份时保留整个数据卷，包括 `admin.json`。通过公网使用首次设置或登录时，应使用 HTTPS 或 SSH 隧道。
 
 新安装可通过 `.env` 的 `PORTPILOT_PROXY_USERNAME` / `PORTPILOT_PROXY_PASSWORD` 自定义初始凭据，留空则自动生成。以下变量**只对首次创建的数据生效**，不会覆盖已有数据：
 

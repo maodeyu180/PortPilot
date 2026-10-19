@@ -71,10 +71,8 @@ func main() {
 		display = "127.0.0.1" + display
 	}
 	log.Printf("PortPilot v0.1.0 · http://%s", display)
-	if token := app.SetupToken(); token != "" {
-		log.Print("首次启动：请在网页设置管理密码；需要以下一次性初始化码验证服务器管理权限")
-		log.Printf("PORTPILOT_SETUP_TOKEN=%s", token)
-		log.Print("初始化码只用于首次设置，设置完成后自动失效；请勿公开启动日志")
+	if app.SetupRequired() {
+		log.Print("首次启动：请访问面板设置管理密码")
 	}
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)

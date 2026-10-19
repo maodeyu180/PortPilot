@@ -38,7 +38,7 @@ func NewApp(store *Store, password string) (*App, error) {
 	return &App{store: store, syncer: &Synchronizer{store: store}, auth: auth, sessionKey: []byte(randomID()), loginFailures: map[string][]time.Time{}}, nil
 }
 
-func (a *App) SetupToken() string { return a.auth.setupToken() }
+func (a *App) SetupRequired() bool { return a.auth.setupRequired() }
 
 func (a *App) RunSync(ctx context.Context) {
 	select {

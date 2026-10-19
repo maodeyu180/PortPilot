@@ -7,25 +7,22 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 )
 
 const testSetupPassword = "my-private-admin-password"
 
-func setupBody(token, password string) map[string]string {
-	return map[string]string{"setupToken": token, "password": password, "confirmPassword": password}
+func setupBody(password string) map[string]string {
+	return map[string]string{"password": password, "confirmPassword": password}
 }
 
 func TestFirstSetupProtectsEveryPrivateAPI(t *testing.T) {
 	a, handler := testHandler(t, "")
-	token := a.SetupToken()
-	if len(token) != 64 {
-		t.Fatal("missing installation-specific setup code")
-	}
 	session := request(handler, "GET", "/api/session", nil)
 	var status map[string]bool
-	if json.Unmarshal(session.Body.Bytes(), &status) != nil || status["authenticated"] || !status["passwordRequired"] || !status["setupRequired"] || bytes.Contains(session.Body.Bytes(), []byte(token)) {
+	if json.Unmarshal(session.Body.Bytes(), &status) != nil || status["authenticated"] || !status["passwordRequired"] || !status["setupRequired"] {
 		t.Fatal("unsafe pending session response")
 	}
 	for _, path := range []string{"/api/state", "/api/config", "/api/core", "/api/export", "/api/settings", "/api/subscriptions", "/api/nodes"} {
@@ -36,29 +33,26 @@ func TestFirstSetupProtectsEveryPrivateAPI(t *testing.T) {
 	if result := request(handler, "POST", "/api/login", map[string]string{"password": ""}); result.Code != http.StatusConflict || len(result.Result().Cookies()) != 0 {
 		t.Fatal("empty-password login bypassed setup")
 	}
-	if reopened, err := NewApp(a.store, ""); err != nil || reopened.SetupToken() != token {
-		t.Fatal("restart changed pending initialization code")
+	if reopened, err := NewApp(a.store, ""); err != nil || !reopened.SetupRequired() {
+		t.Fatal("restart did not preserve pending initialization")
 	}
-	other, _ := testHandler(t, "")
-	if other.SetupToken() == token {
-		t.Fatal("installations share a setup code")
+	data, err := os.ReadFile(filepath.Join(a.store.dir, "admin.json"))
+	if err != nil || bytes.Contains(data, []byte("setupToken")) {
+		t.Fatal("fresh setup still generates an initialization code")
 	}
 }
 
 func TestSetupValidationPersistenceAndSingleUse(t *testing.T) {
 	a, handler := testHandler(t, "")
-	token := a.SetupToken()
 	for _, test := range []struct {
 		name string
 		body map[string]string
 		code int
 	}{
-		{"wrong code", setupBody("wrong-code", testSetupPassword), http.StatusUnauthorized},
-		{"missing code", setupBody("", testSetupPassword), http.StatusUnauthorized},
-		{"empty password", setupBody(token, ""), http.StatusBadRequest},
-		{"short password", setupBody(token, "short"), http.StatusBadRequest},
-		{"spaces", setupBody(token, "            "), http.StatusBadRequest},
-		{"confirmation", map[string]string{"setupToken": token, "password": testSetupPassword, "confirmPassword": "another-password"}, http.StatusBadRequest},
+		{"empty password", setupBody(""), http.StatusBadRequest},
+		{"short password", setupBody("short"), http.StatusBadRequest},
+		{"spaces", setupBody("            "), http.StatusBadRequest},
+		{"confirmation", map[string]string{"password": testSetupPassword, "confirmPassword": "another-password"}, http.StatusBadRequest},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			result := request(handler, "POST", "/api/setup", test.body)
@@ -67,10 +61,10 @@ func TestSetupValidationPersistenceAndSingleUse(t *testing.T) {
 			}
 		})
 	}
-	result := request(handler, "POST", "/api/setup", setupBody(token, testSetupPassword))
+	result := request(handler, "POST", "/api/setup", setupBody(testSetupPassword))
 	cookies := result.Result().Cookies()
-	if result.Code != http.StatusOK || len(cookies) != 1 || !cookies[0].HttpOnly || cookies[0].SameSite != http.SameSiteStrictMode || a.SetupToken() != "" {
-		t.Fatal("setup did not issue a protected session and invalidate the code")
+	if result.Code != http.StatusOK || len(cookies) != 1 || !cookies[0].HttpOnly || cookies[0].SameSite != http.SameSiteStrictMode || a.SetupRequired() {
+		t.Fatal("password-only setup did not issue a protected session")
 	}
 	if request(handler, "GET", "/api/state", nil, cookies...).Code != http.StatusOK {
 		t.Fatal("setup session cannot access the panel")
@@ -78,13 +72,13 @@ func TestSetupValidationPersistenceAndSingleUse(t *testing.T) {
 	if request(handler, "GET", "/api/state", nil).Code != http.StatusUnauthorized {
 		t.Fatal("completed setup left anonymous access enabled")
 	}
-	if request(handler, "POST", "/api/setup", setupBody(token, "attacker-new-password")).Code != http.StatusConflict {
+	if request(handler, "POST", "/api/setup", setupBody("attacker-new-password")).Code != http.StatusConflict {
 		t.Fatal("initialization endpoint can reset an existing password")
 	}
 	path := filepath.Join(a.store.dir, "admin.json")
 	data, err := os.ReadFile(path)
 	info, statErr := os.Stat(path)
-	if err != nil || statErr != nil || info.Mode().Perm() != 0600 || bytes.Contains(data, []byte(testSetupPassword)) || bytes.Contains(data, []byte(token)) {
+	if err != nil || statErr != nil || info.Mode().Perm() != 0600 || bytes.Contains(data, []byte(testSetupPassword)) {
 		t.Fatal("unsafe persisted authentication data")
 	}
 	var record adminRecord
@@ -115,10 +109,10 @@ func requestForCookie(cookie *http.Cookie) *http.Request {
 
 func TestConfiguredPasswordSkipsSetupAndSupportsOwnerOverride(t *testing.T) {
 	a, handler := testHandler(t, testSetupPassword)
-	if a.auth.setupRequired() || a.SetupToken() != "" {
+	if a.SetupRequired() {
 		t.Fatal("explicit password did not skip initialization")
 	}
-	if request(handler, "POST", "/api/setup", setupBody("", "attacker-new-password")).Code != http.StatusConflict {
+	if request(handler, "POST", "/api/setup", setupBody("attacker-new-password")).Code != http.StatusConflict {
 		t.Fatal("configured password can be overwritten through setup")
 	}
 	reopened, err := NewApp(a.store, "")
@@ -153,7 +147,6 @@ func TestAuthenticationFileCorruptionFailsClosed(t *testing.T) {
 
 func TestSetupWriteFailureDoesNotUnlockPanel(t *testing.T) {
 	a, handler := testHandler(t, "")
-	token := a.SetupToken()
 	path := filepath.Join(a.store.dir, "admin.json")
 	if err := os.Remove(path); err != nil {
 		t.Fatal(err)
@@ -161,22 +154,21 @@ func TestSetupWriteFailureDoesNotUnlockPanel(t *testing.T) {
 	if err := os.Mkdir(path, fs.FileMode(0700)); err != nil {
 		t.Fatal(err)
 	}
-	response := request(handler, "POST", "/api/setup", setupBody(token, testSetupPassword))
-	if response.Code != http.StatusInternalServerError || len(response.Result().Cookies()) != 0 || !a.auth.setupRequired() || a.SetupToken() != token {
-		t.Fatal("failed persistence unlocked the panel or consumed the code")
+	response := request(handler, "POST", "/api/setup", setupBody(testSetupPassword))
+	if response.Code != http.StatusInternalServerError || len(response.Result().Cookies()) != 0 || !a.auth.setupRequired() {
+		t.Fatal("failed persistence unlocked the panel")
 	}
 }
 
 func TestConcurrentSetupHasExactlyOneWinner(t *testing.T) {
-	a, handler := testHandler(t, "")
-	token := a.SetupToken()
+	_, handler := testHandler(t, "")
 	results := make(chan int, 8)
 	var workers sync.WaitGroup
 	for range 8 {
 		workers.Add(1)
 		go func() {
 			defer workers.Done()
-			results <- request(handler, "POST", "/api/setup", setupBody(token, testSetupPassword)).Code
+			results <- request(handler, "POST", "/api/setup", setupBody(testSetupPassword)).Code
 		}()
 	}
 	workers.Wait()
@@ -194,15 +186,26 @@ func TestConcurrentSetupHasExactlyOneWinner(t *testing.T) {
 	}
 }
 
-func TestSetupCodeFailuresAreRateLimited(t *testing.T) {
-	a, handler := testHandler(t, "")
-	for range 10 {
-		if request(handler, "POST", "/api/setup", setupBody("wrong-code", testSetupPassword)).Code != http.StatusUnauthorized {
-			t.Fatal("setup failure not recorded")
-		}
+func TestLegacyPendingSetupMigratesWithoutCode(t *testing.T) {
+	store := newStore(t)
+	path := filepath.Join(store.dir, "admin.json")
+	legacy := `{"version":1,"setupToken":"` + strings.Repeat("a", 64) + `"}`
+	if err := os.WriteFile(path, []byte(legacy), 0600); err != nil {
+		t.Fatal(err)
 	}
-	result := request(handler, "POST", "/api/setup", setupBody(a.SetupToken(), testSetupPassword))
-	if result.Code != http.StatusTooManyRequests || result.Header().Get("Retry-After") == "" {
-		t.Fatal("setup code guessing was not rate limited")
+	auth, err := NewApp(store, "")
+	if err != nil || !auth.SetupRequired() {
+		t.Fatal("legacy pending setup could not migrate")
+	}
+	data, _ := os.ReadFile(path)
+	if bytes.Contains(data, []byte("setupToken")) {
+		t.Fatal("migration retained the old setup code")
+	}
+	if err := auth.auth.initialize(testSetupPassword); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := NewApp(store, "")
+	if err != nil || reopened.SetupRequired() || !reopened.auth.verify(testSetupPassword) {
+		t.Fatal("migrated password was not preserved")
 	}
 }

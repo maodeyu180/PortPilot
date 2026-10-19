@@ -18,14 +18,11 @@ import (
 
 const passwordIterations = 600000
 
-var (
-	errAlreadyInitialized = errors.New("管理密码已经设置，请直接登录")
-	errInvalidSetupToken  = errors.New("初始化码不正确，请从服务器启动日志复制")
-)
+var errAlreadyInitialized = errors.New("管理密码已经设置，请直接登录")
 
 type adminRecord struct {
 	Version    int    `json:"version"`
-	SetupToken string `json:"setupToken,omitempty"`
+	Pending    bool   `json:"pending,omitempty"`
 	Salt       string `json:"salt,omitempty"`
 	Hash       string `json:"hash,omitempty"`
 	Iterations int    `json:"iterations,omitempty"`
@@ -74,9 +71,8 @@ func validateAdminRecord(record adminRecord) error {
 	if record.Version != 1 {
 		return fmt.Errorf("不支持的管理认证数据版本")
 	}
-	if record.SetupToken != "" {
-		key, err := hex.DecodeString(record.SetupToken)
-		if err != nil || len(key) != 32 || record.Hash != "" || record.Salt != "" || record.Iterations != 0 {
+	if record.Pending {
+		if record.Hash != "" || record.Salt != "" || record.Iterations != 0 {
 			return fmt.Errorf("初始化认证数据无效")
 		}
 		return nil
@@ -106,7 +102,24 @@ func openAdmin(dir, password string) (*adminAuth, error) {
 		if readErr != nil {
 			return nil, readErr
 		}
-		if json.Unmarshal(data, &auth.record) != nil || validateAdminRecord(auth.record) != nil {
+		var saved struct {
+			adminRecord
+			LegacySetupToken string `json:"setupToken"`
+		}
+		if json.Unmarshal(data, &saved) != nil {
+			return nil, fmt.Errorf("管理认证文件损坏，原文件已保留；请恢复备份")
+		}
+		auth.record = saved.adminRecord
+		// Migrate pending installations created before direct password setup.
+		if saved.LegacySetupToken != "" {
+			key, decodeErr := hex.DecodeString(saved.LegacySetupToken)
+			if decodeErr != nil || len(key) != 32 || auth.record.Pending || auth.record.Hash != "" || auth.record.Salt != "" || auth.record.Iterations != 0 {
+				return nil, fmt.Errorf("管理认证文件损坏，原文件已保留；请恢复备份")
+			}
+			auth.record.Pending = true
+			dirty = true
+		}
+		if validateAdminRecord(auth.record) != nil {
 			return nil, fmt.Errorf("管理认证文件损坏，原文件已保留；请恢复备份")
 		}
 		if err := os.Chmod(auth.path, 0600); err != nil {
@@ -115,7 +128,7 @@ func openAdmin(dir, password string) (*adminAuth, error) {
 	} else if !os.IsNotExist(err) {
 		return nil, err
 	} else {
-		auth.record = adminRecord{Version: 1, SetupToken: randomHex(32)}
+		auth.record = adminRecord{Version: 1, Pending: true}
 		dirty = true
 	}
 	if password != "" && !matchesPassword(auth.record, password) {
@@ -144,16 +157,10 @@ func (a *adminAuth) save(record adminRecord) error {
 	return atomicWrite(a.path, data)
 }
 
-func (a *adminAuth) setupToken() string {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-	return a.record.SetupToken
-}
-
 func (a *adminAuth) setupRequired() bool {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
-	return a.record.Hash == ""
+	return a.record.Pending
 }
 
 func (a *adminAuth) verify(password string) bool {
@@ -163,14 +170,11 @@ func (a *adminAuth) verify(password string) bool {
 	return matchesPassword(record, password)
 }
 
-func (a *adminAuth) initialize(token, password string) error {
+func (a *adminAuth) initialize(password string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.record.Hash != "" {
 		return errAlreadyInitialized
-	}
-	if !hmac.Equal([]byte(token), []byte(a.record.SetupToken)) {
-		return errInvalidSetupToken
 	}
 	if err := validateAdminPassword(password); err != nil {
 		return err
