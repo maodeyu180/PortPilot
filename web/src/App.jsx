@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Activity, ArrowRight, BookOpen, CheckCircle2, CircleHelp, FileCode2, FolderSync, LayoutDashboard, Loader2, LogOut, Menu, Network, PanelLeftClose, PanelLeftOpen, Plus, RefreshCw, ShieldCheck, SlidersHorizontal, SquareTerminal, TriangleAlert, X } from 'lucide-react';
 import { api, copyText, Logo, Button, IconButton, Badge } from './ui.jsx';
-import { Access, Settings, Logs, SubscriptionModal, NodeModal, ExportModal, ConfirmModal, ConfigModal, Guide, Login } from './panels.jsx';
+import { Access, Settings, Logs, SubscriptionModal, NodeModal, ExportModal, ConfirmModal, ConfigModal, Guide } from './panels.jsx';
+import { Login, Setup } from './Auth.jsx';
 import Nodes from './Nodes.jsx';
 import Overview from './Overview.jsx';
 import Subscriptions from './Subscriptions.jsx';
@@ -51,7 +52,7 @@ export default function App() {
   async function refreshAll() { await Promise.all([load(), refreshCore()]); }
   useEffect(() => {
     api('/session').then(setSession).catch(e => setLoadError(e.message));
-    const expired = () => setSession({ authenticated: false, passwordRequired: true });
+    const expired = () => { setState(null); api('/session').then(setSession).catch(error => setLoadError(error.message)); };
     const changed = () => setRoute(routeFromHash());
     window.addEventListener('session-expired', expired);
     window.addEventListener('hashchange', changed);
@@ -107,7 +108,8 @@ export default function App() {
   }
   const context = { state, setState, core, mutate, notify, run, busy, setModal, copy, exportNode, refreshCore, navigate, testNodes };
 
-  if (session && !session.authenticated) return <Login onSuccess={() => setSession({ authenticated: true, passwordRequired: true })} />;
+  if (session?.setupRequired) return <Setup onSuccess={setSession} onInitialized={setSession} />;
+  if (session && !session.authenticated) return <Login onSuccess={setSession} />;
   if (!state) return <div className="loading-page"><Logo /><div className="loading-label">{loadError ? <><TriangleAlert size={18} />{loadError}<Button onClick={() => location.reload()}>重新加载</Button></> : <><Loader2 size={19} className="spin" />正在连接控制台…</>}</div></div>;
   const pending = state.revision !== state.appliedRevision;
   const enabled = state.nodes.filter(n => n.enabled && n.available).length;

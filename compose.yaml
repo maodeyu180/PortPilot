@@ -69,7 +69,7 @@ services:
     network_mode: host
     command: ["-listen", "${PORTPILOT_LISTEN:-0.0.0.0:8787}", "-data", "/app/data"]
     environment:
-      PORTPILOT_ADMIN_PASSWORD: ${PORTPILOT_ADMIN_PASSWORD:?Run sh scripts/setup.sh or set a strong admin password in .env}
+      PORTPILOT_ADMIN_PASSWORD: ${PORTPILOT_ADMIN_PASSWORD:-}
     depends_on:
       init:
         condition: service_completed_successfully

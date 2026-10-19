@@ -40,22 +40,18 @@ func main() {
 		return
 	}
 	password := os.Getenv("PORTPILOT_ADMIN_PASSWORD")
-	host, _, err := net.SplitHostPort(*listen)
+	_, _, err := net.SplitHostPort(*listen)
 	if err != nil {
 		log.Fatal("无效的监听地址")
-	}
-	local := host == "localhost" || (net.ParseIP(host) != nil && net.ParseIP(host).IsLoopback())
-	if !local && len(password) < 12 {
-		log.Fatal("公开监听须设置至少 12 位的 PORTPILOT_ADMIN_PASSWORD")
-	}
-	if password != "" && len(password) < 12 {
-		log.Fatal("管理密码至少需要 12 位")
 	}
 	store, err := control.OpenStore(*data)
 	if err != nil {
 		log.Fatal(err)
 	}
-	app := control.NewApp(store, password)
+	app, err := control.NewApp(store, password)
+	if err != nil {
+		log.Fatal(err)
+	}
 	assets, err := fs.Sub(web.Assets, "dist")
 	if err != nil {
 		log.Fatal(err)
@@ -75,8 +71,10 @@ func main() {
 		display = "127.0.0.1" + display
 	}
 	log.Printf("PortPilot v0.1.0 · http://%s", display)
-	if password == "" {
-		log.Print("本机管理模式；非本机监听需设置 PORTPILOT_ADMIN_PASSWORD")
+	if token := app.SetupToken(); token != "" {
+		log.Print("首次启动：请在网页设置管理密码；需要以下一次性初始化码验证服务器管理权限")
+		log.Printf("PORTPILOT_SETUP_TOKEN=%s", token)
+		log.Print("初始化码只用于首次设置，设置完成后自动失效；请勿公开启动日志")
 	}
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)

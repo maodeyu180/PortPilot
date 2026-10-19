@@ -64,8 +64,11 @@ jobs:
           EOF
           docker compose -p portpilot-ci config --quiet
           docker compose -p portpilot-ci up -d --build --wait --wait-timeout 90
+          mkdir -p .artifacts
+          docker compose -p portpilot-ci exec -T portpilot cat /app/data/admin.json > .artifacts/ci-admin.json
+          chmod 600 .artifacts/ci-admin.json
       - name: Test HTTP and SOCKS5H authentication and forwarding
-        run: python3 tests/docker_smoke.py --base-url http://127.0.0.1:18787 --env-file .env
+        run: python3 tests/docker_smoke.py --base-url http://127.0.0.1:18787 --env-file .env --setup-token-file .artifacts/ci-admin.json
       - name: Show Docker logs after failure
         if: failure() && steps.docker.outcome != 'skipped'
         run: docker compose -p portpilot-ci logs --tail 100

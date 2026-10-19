@@ -201,8 +201,25 @@ func TestPortAllocationSkipsControllerAndDuplicateNamesAcrossSources(t *testing.
 
 func testHandler(t *testing.T, password string) (*App, http.Handler) {
 	t.Helper()
-	a := NewApp(newStore(t), password)
+	a, err := NewApp(newStore(t), password)
+	if err != nil {
+		t.Fatal(err)
+	}
 	return a, a.Handler(fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("PortPilot")}})
+}
+
+func authenticatedTestHandler(t *testing.T) (*App, http.Handler) {
+	t.Helper()
+	a, handler := testHandler(t, "long-admin-password")
+	login := request(handler, "POST", "/api/login", map[string]string{"password": "long-admin-password"})
+	if login.Code != http.StatusOK || len(login.Result().Cookies()) != 1 {
+		t.Fatal("test login failed")
+	}
+	cookie := login.Result().Cookies()[0]
+	return a, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.AddCookie(cookie)
+		handler.ServeHTTP(w, r)
+	})
 }
 func request(h http.Handler, method, path string, body any, cookies ...*http.Cookie) *httptest.ResponseRecorder {
 	var input io.Reader
@@ -248,13 +265,13 @@ func TestAuthenticationCSRFAndDNSRebinding(t *testing.T) {
 	r = httptest.NewRequest("GET", "http://evil.example/api/state", nil)
 	w = httptest.NewRecorder()
 	local.ServeHTTP(w, r)
-	if w.Code != 403 {
-		t.Fatal("DNS rebinding accepted")
+	if w.Code != 401 {
+		t.Fatal("unauthenticated DNS rebinding request accepted")
 	}
 }
 
 func TestSubscriptionNodeCRUDAndDuplicatePort(t *testing.T) {
-	a, h := testHandler(t, "")
+	a, h := authenticatedTestHandler(t)
 	w := request(h, "POST", "/api/subscriptions", map[string]any{"name": "测试订阅", "content": fixture, "interval": 0})
 	if w.Code != 201 {
 		t.Fatal(w.Body.String())
@@ -364,7 +381,7 @@ func TestSubscriptionNoticesDoNotConsumePorts(t *testing.T) {
 	if len(actual) != 2 || len(info) != 1 {
 		t.Fatal("account notices treated as nodes")
 	}
-	_, h := testHandler(t, "")
+	_, h := authenticatedTestHandler(t)
 	data, _ := yaml.Marshal(map[string]any{"proxies": p})
 	w := request(h, "POST", "/api/subscriptions", map[string]any{"name": "来源", "content": string(data)})
 	var state State

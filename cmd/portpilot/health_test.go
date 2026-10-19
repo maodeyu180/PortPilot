@@ -15,6 +15,7 @@ func TestHealthCheckValidatesPanelResponse(t *testing.T) {
 		ok         bool
 	}{
 		{"ready", `{"authenticated":false,"passwordRequired":true}`, 200, true},
+		{"first-time setup", `{"authenticated":false,"passwordRequired":true,"setupRequired":true}`, 200, true},
 		{"login required", `{"error":"unauthorized"}`, 401, false},
 		{"wrong service", `<html>other service</html>`, 200, false},
 		{"missing session", `{}`, 200, false},

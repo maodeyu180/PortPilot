@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -23,8 +22,7 @@ import (
 type App struct {
 	store         *Store
 	syncer        *Synchronizer
-	adminHash     [32]byte
-	hasPassword   bool
+	auth          *adminAuth
 	sessionKey    []byte
 	applyMu       sync.Mutex
 	testMu        sync.Mutex
@@ -32,19 +30,32 @@ type App struct {
 	loginFailures map[string][]time.Time
 }
 
-func NewApp(store *Store, password string) *App {
-	return &App{store: store, syncer: &Synchronizer{store: store}, hasPassword: password != "", adminHash: sha256.Sum256([]byte(password)), sessionKey: []byte(randomID()), loginFailures: map[string][]time.Time{}}
+func NewApp(store *Store, password string) (*App, error) {
+	auth, err := openAdmin(store.dir, password)
+	if err != nil {
+		return nil, err
+	}
+	return &App{store: store, syncer: &Synchronizer{store: store}, auth: auth, sessionKey: []byte(randomID()), loginFailures: map[string][]time.Time{}}, nil
 }
 
-func (a *App) RunSync(ctx context.Context) { a.syncer.Run(ctx) }
+func (a *App) SetupToken() string { return a.auth.setupToken() }
+
+func (a *App) RunSync(ctx context.Context) {
+	select {
+	case <-ctx.Done():
+		return
+	case <-a.auth.ready:
+		a.syncer.Run(ctx)
+	}
+}
 func (a *App) signature(s string) string {
 	mac := hmac.New(sha256.New, a.sessionKey)
 	mac.Write([]byte(s))
 	return hex.EncodeToString(mac.Sum(nil))
 }
 func (a *App) authorized(r *http.Request) bool {
-	if !a.hasPassword {
-		return true
+	if a.auth.setupRequired() {
+		return false
 	}
 	cookie, err := r.Cookie("portpilot_session")
 	if err != nil {
@@ -84,8 +95,9 @@ func decode(r *http.Request, v any) error {
 func (a *App) Handler(assets fs.FS) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/session", func(w http.ResponseWriter, r *http.Request) {
-		respond(w, 200, map[string]bool{"authenticated": a.authorized(r), "passwordRequired": a.hasPassword})
+		respond(w, 200, map[string]bool{"authenticated": a.authorized(r), "passwordRequired": true, "setupRequired": a.auth.setupRequired()})
 	})
+	mux.HandleFunc("POST /api/setup", a.setup)
 	mux.HandleFunc("POST /api/login", a.login)
 	mux.HandleFunc("POST /api/logout", func(w http.ResponseWriter, r *http.Request) {
 		http.SetCookie(w, &http.Cookie{Name: "portpilot_session", Path: "/", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteStrictMode})
@@ -183,17 +195,6 @@ func (a *App) Handler(assets fs.FS) http.Handler {
 		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'")
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			w.Header().Set("Cache-Control", "no-store")
-			if !a.hasPassword {
-				host := r.Host
-				if parsed, _, err := net.SplitHostPort(host); err == nil {
-					host = parsed
-				}
-				ip := net.ParseIP(strings.Trim(host, "[]"))
-				if host != "localhost" && (ip == nil || !ip.IsLoopback()) {
-					fail(w, 403, "本机模式仅允许 localhost 或回环 IP 访问")
-					return
-				}
-			}
 			if origin := r.Header.Get("Origin"); origin != "" {
 				u, err := url.Parse(origin)
 				if err != nil || u.Host != r.Host {
@@ -205,7 +206,7 @@ func (a *App) Handler(assets fs.FS) http.Handler {
 				fail(w, 403, "不允许跨站请求")
 				return
 			}
-			if r.URL.Path != "/api/session" && r.URL.Path != "/api/login" && !a.authorized(r) {
+			if r.URL.Path != "/api/session" && r.URL.Path != "/api/login" && r.URL.Path != "/api/setup" && !a.authorized(r) {
 				fail(w, 401, "请先登录控制台")
 				return
 			}
@@ -213,44 +214,6 @@ func (a *App) Handler(assets fs.FS) http.Handler {
 		}
 		mux.ServeHTTP(w, r)
 	})
-}
-
-func (a *App) login(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		Password string `json:"password"`
-	}
-	if decode(r, &body) != nil {
-		fail(w, 400, "请输入管理密码")
-		return
-	}
-	a.loginMu.Lock()
-	defer a.loginMu.Unlock()
-	// Bound memory and limit repeated failures per client.
-	now := time.Now()
-	key, _, _ := net.SplitHostPort(r.RemoteAddr)
-	if len(a.loginFailures) > 1024 {
-		a.loginFailures = map[string][]time.Time{}
-	}
-	attempts := []time.Time{}
-	for _, t := range a.loginFailures[key] {
-		if now.Sub(t) < 5*time.Minute {
-			attempts = append(attempts, t)
-		}
-	}
-	if len(attempts) >= 10 {
-		fail(w, 429, "尝试次数过多，请 5 分钟后重试")
-		return
-	}
-	hash := sha256.Sum256([]byte(body.Password))
-	if a.hasPassword && !hmac.Equal(hash[:], a.adminHash[:]) {
-		a.loginFailures[key] = append(attempts, now)
-		fail(w, 401, "管理密码不正确")
-		return
-	}
-	delete(a.loginFailures, key)
-	expires := strconv.FormatInt(now.Add(12*time.Hour).Unix(), 10)
-	http.SetCookie(w, &http.Cookie{Name: "portpilot_session", Value: expires + "." + a.signature(expires), Path: "/", HttpOnly: true, Secure: r.TLS != nil, SameSite: http.SameSiteStrictMode, MaxAge: 43200})
-	respond(w, 200, map[string]bool{"authenticated": true})
 }
 
 func (a *App) updateSettings(w http.ResponseWriter, r *http.Request) {

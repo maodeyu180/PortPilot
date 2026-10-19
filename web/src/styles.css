@@ -23,3 +23,5 @@
 .node-tabs{overflow-x:auto;gap:16px}
 .node-tabs>button{flex-shrink:0}
 .health-legend>button{height:38px}}
+
+.setup-card{width:510px;margin:28px 0}.setup-card>.logo{margin-bottom:30px}.auth-fields{display:grid;gap:21px}.setup-instructions{display:flex;align-items:flex-start;gap:10px;padding:16px;margin-bottom:25px;border:1px solid #dceafa;border-radius:8px;background:#f6faff;color:#3b82f6}.setup-instructions>svg{margin-top:2px}.setup-instructions strong{display:block;color:#244c82;font-size:13px;font-weight:700}.setup-instructions p{margin:7px 0 10px;color:#64748b;font-size:12px;line-height:1.8}.setup-instructions code{display:block;color:#2563eb;font-size:12px;overflow-wrap:anywhere}.setup-instructions span{display:block;color:#64748b;font-size:11px;line-height:1.8;margin-top:9px;overflow-wrap:anywhere}@media(max-width:600px){.setup-card{width:calc(100vw - 34px);margin:20px 0;padding:27px}.setup-card>.logo{margin-bottom:26px}.setup-instructions{padding:13px;gap:8px}.setup-card .login-foot{font-size:10px}}

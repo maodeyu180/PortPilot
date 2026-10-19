@@ -1,23 +1,18 @@
 #!/bin/sh
-# Generate secrets locally; never replace an existing environment file.
+# Prepare private deployment settings; never replace an existing file.
 set -eu
 cd "$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 env_file=${1:-.env}
 if [ -e "$env_file" ] || [ -L "$env_file" ]; then
-  printf '%s\n' "环境文件已存在，未修改：${env_file}" "请确认管理密码已设置，再运行 docker compose up -d --build。"
+  printf '%s\n' "环境文件已存在，未修改：${env_file}" "管理密码留空时，首次访问面板会引导设置；启动后从容器日志获取初始化码。"
   exit 0
 fi
 umask 077
-admin_password=$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')
-if [ "${#admin_password}" -ne 48 ]; then
-  printf '%s\n' '无法生成随机管理密码，未创建环境文件。' >&2
-  exit 1
-fi
 (
   set -C
-  sed "s/^PORTPILOT_ADMIN_PASSWORD=$/PORTPILOT_ADMIN_PASSWORD=$admin_password/" .env.example > "$env_file"
+  cat .env.example > "$env_file"
 )
 printf '%s\n' "已生成私有环境文件：${env_file}（权限 600）" \
-  '管理密码位于其中的 PORTPILOT_ADMIN_PASSWORD；代理密码在首次启动时自动生成。' \
+  '管理密码默认留空，首次打开面板时设置；代理密码会独立随机生成。' \
   '下一步：docker compose up -d --build' \
-  '登录面板后，在运行配置中设置入口 IP，在访问认证中查看代理账号密码。'
+  '启动后运行 docker compose logs portpilot 获取一次性初始化码，按网页提示设置管理密码。'

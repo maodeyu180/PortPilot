@@ -3,7 +3,7 @@ import { Activity, ArrowDown, ArrowDownToLine, ArrowRight, ArrowUpRight, BookOpe
 async function api(path, method = 'GET', body) {
   const response = await fetch(`/api${path}`, { method, headers: body !== undefined ? { 'Content-Type': 'application/json' } : {}, body: body !== undefined ? JSON.stringify(body) : undefined });
   const data = await response.json();
-  if (!response.ok) { if (response.status === 401 && path !== '/login') window.dispatchEvent(new Event('session-expired')); throw new Error(data.error || '请求失败，请重试'); }
+  if (!response.ok) { if (response.status === 401 && !['/login', '/setup'].includes(path)) window.dispatchEvent(new Event('session-expired')); const error = new Error(data.error || '请求失败，请重试'); error.status = response.status; throw error; }
   return data;
 }
 const formatTime = value => value ? new Date(value).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : '尚未更新';
