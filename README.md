@@ -6,6 +6,10 @@
 
 蓝白主题、轻量自托管的 Mihomo 订阅管理面板。把订阅与节点分享链接映射为带账号密码的 HTTP / SOCKS5 端口，在浏览器、脚本和工具里直接使用。
 
+![PortPilot 服务概览：节点统计、固定入口与延迟分布](docs/screenshots/overview.jpg)
+
+以上及下方截图均使用演示数据，节点、订阅、账号、地址、连接状态、延迟与流量信息均为虚构，不含真实订阅或凭据，也不代表实测性能。
+
 ```text
 订阅 / 节点 → PortPilot → Mihomo
                            ├── :20001 → 节点 A
@@ -35,6 +39,40 @@ socks5h://用户名:密码@服务器:20001
 - 蓝白主题、可收起的侧边栏与手机布局，地址复制同时兼容本机和局域网 HTTP 面板。
 - Go 后端 + React 前端，前端嵌入单个可执行文件，运行时不依赖 Node。
 - Docker Compose 包含面板、独立 Mihomo 内核与一次性初始化，首次启动自动生成随机凭据。
+
+## 界面预览
+
+点击展开查看各页面。截图来自 v0.1.2，使用蓝白主题与演示数据。
+
+<details>
+<summary>节点管理：搜索筛选、固定端口与连接测试</summary>
+
+![节点管理：按名称搜索节点，查看协议、固定入口、延迟和启用状态](docs/screenshots/nodes.jpg)
+
+</details>
+
+<details>
+<summary>订阅管理：来源、自动更新与流量信息</summary>
+
+![订阅管理：查看演示订阅的节点数量、自动更新间隔和流量信息](docs/screenshots/subscriptions.jpg)
+
+</details>
+
+<details>
+<summary>多格式导入：Base64 与分享链接转换预览</summary>
+
+![添加节点：将 Base64 编码的节点分享链接识别并转换为可编辑的 YAML](docs/screenshots/import.jpg)
+
+</details>
+
+<details>
+<summary>代理地址导出：HTTP / SOCKS5H 与账密认证</summary>
+
+![代理地址导出：选择 SOCKS5H，预览隐藏认证信息的地址并复制或下载](docs/screenshots/export.jpg)
+
+</details>
+
+原图与更新说明见 [截图目录](docs/screenshots/README.md)。
 
 ## Docker 启动（Linux，推荐）
 
@@ -149,7 +187,7 @@ cmd/portpilot/      程序入口
 internal/control/  HTTP API、订阅同步、存储、配置及内核交互
 web/src/           React 界面
 examples/          示例配置与 systemd 单元
-docs/              部署说明
+docs/              部署、发布说明与界面截图
 scripts/           环境文件初始化
 tests/             Docker 启动与 HTTP / SOCKS5H 认证集成检查
 data/              私有运行数据（已忽略）
