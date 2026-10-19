@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Activity, ArrowDown, ArrowDownToLine, ArrowRight, ArrowUpRight, BookOpen, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Circle, CircleHelp, Clipboard, Clock3, Code2, Copy, Download, Ellipsis, ExternalLink, FileCode2, FileText, FolderSync, Globe2, KeyRound, Layers3, LayoutGrid, Link2, ListFilter, Loader2, LogOut, Menu, Network, Plus, Power, Radio, RefreshCw, Search, Server, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, SquareTerminal, Trash2, TriangleAlert, Upload, Waypoints, X, Zap } from 'lucide-react';
 import { api, formatTime, download, Logo, Button, IconButton, Badge, Switch, Field, Modal } from './ui.jsx';
 
@@ -22,13 +22,89 @@ function Logs({ state }) { return <section className="panel log-panel"><div clas
 function SubscriptionModal({ subscription, mutate, onClose }) {
   const [mode, setMode] = useState('url'); const [name, setName] = useState(subscription?.name || '我的订阅'); const [url, setUrl] = useState(subscription?.url || ''); const [content, setContent] = useState(''); const [interval, setInterval] = useState(subscription?.interval ?? 24); const [loading, setLoading] = useState(false); const [error, setError] = useState('');
   const submit = async e => { e.preventDefault(); setLoading(true); setError(''); try { const body = subscription ? { name, url, interval: Number(interval) } : { name, url: mode === 'url' ? url : '', content: mode === 'yaml' ? content : '', interval: mode === 'yaml' ? 0 : Number(interval) }; await mutate(subscription ? `/subscriptions/${subscription.id}` : '/subscriptions', subscription ? 'PUT' : 'POST', body, subscription ? '订阅设置已保存' : '订阅导入成功，已分配固定端口'); onClose(); } catch (e) { setError(e.message); } finally { setLoading(false); } };
-  return <Modal title={subscription ? '编辑订阅' : '导入订阅'} subtitle="支持 Clash / Mihomo 格式，导入后自动分配固定端口。" onClose={onClose}><form onSubmit={submit}>{!subscription && <div className="segmented"><button type="button" className={mode === 'url' ? 'active' : ''} onClick={() => setMode('url')}><Link2 size={15} />订阅链接</button><button type="button" className={mode === 'yaml' ? 'active' : ''} onClick={() => setMode('yaml')}><FileText size={15} />YAML 配置</button></div>}<div className="form-grid"><Field label="订阅名称" wide><input value={name} onChange={e => setName(e.target.value)} required maxLength={100} autoFocus /></Field>{mode === 'url' ? <Field label="订阅地址" hint="链接中的 Token 仅保存在本机数据目录，不会写入源码。" wide><input type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://example.com/subscribe?token=…" required={!subscription || !!subscription.url} autoComplete="off" /></Field> : <Field label="Clash YAML 内容" hint="须包含 proxies: 列表。仅导入节点，不执行订阅中的规则或脚本。" wide><textarea className="code-input" rows={8} value={content} onChange={e => setContent(e.target.value)} placeholder={'proxies:\n  - name: 我的节点\n    type: vless\n    ...'} required /></Field>}{mode === 'url' && <Field label="自动更新" wide><select value={interval} onChange={e => setInterval(e.target.value)}><option value="0">仅手动更新</option><option value="1">每 1 小时</option><option value="6">每 6 小时</option><option value="12">每 12 小时</option><option value="24">每 24 小时</option>{![0,1,6,12,24].includes(Number(interval)) && <option value={interval}>每 {interval} 小时</option>}</select></Field>}</div>{error && <div className="inline-error" role="alert">{error}</div>}<div className="modal-form-footer"><Button type="button" onClick={onClose}>取消</Button><Button variant="primary" type="submit" loading={loading}>{!loading && <Upload size={15} />}{subscription ? '保存订阅' : loading ? '正在获取节点…' : '导入并分配端口'}</Button></div></form></Modal>;
+  return <Modal title={subscription ? '编辑订阅' : '导入订阅'} subtitle="支持 Clash / Mihomo、分享链接和 Base64 订阅，自动分配固定端口。" onClose={onClose}><form onSubmit={submit}>{!subscription && <div className="segmented"><button type="button" className={mode === 'url' ? 'active' : ''} onClick={() => setMode('url')}><Link2 size={15} />订阅链接</button><button type="button" className={mode === 'yaml' ? 'active' : ''} onClick={() => setMode('yaml')}><FileText size={15} />粘贴内容</button></div>}<div className="form-grid"><Field label="订阅名称" wide><input value={name} onChange={e => setName(e.target.value)} required maxLength={100} autoFocus /></Field>{mode === 'url' ? <Field label="订阅地址" hint="链接中的 Token 仅保存在本机数据目录，不会写入源码。" wide><input type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://example.com/subscribe?token=…" required={!subscription || !!subscription.url} autoComplete="off" /></Field> : <Field label="订阅内容" hint="支持 YAML / JSON、每行一个的分享链接或 Base64 内容。仅提取节点，不导入规则。" wide><textarea className="code-input" rows={8} value={content} onChange={e => setContent(e.target.value)} placeholder={'proxies:\n  - name: 我的节点\n    type: vless\n    ...'} required /></Field>}{mode === 'url' && <Field label="自动更新" wide><select value={interval} onChange={e => setInterval(e.target.value)}><option value="0">仅手动更新</option><option value="1">每 1 小时</option><option value="6">每 6 小时</option><option value="12">每 12 小时</option><option value="24">每 24 小时</option>{![0,1,6,12,24].includes(Number(interval)) && <option value={interval}>每 {interval} 小时</option>}</select></Field>}</div>{error && <div className="inline-error" role="alert">{error}</div>}<div className="modal-form-footer"><Button type="button" onClick={onClose}>取消</Button><Button variant="primary" type="submit" loading={loading}>{!loading && <Upload size={15} />}{subscription ? '保存订阅' : loading ? '正在获取节点…' : '导入并分配端口'}</Button></div></form></Modal>;
 }
 
 function NodeModal({ node, state, mutate, onClose }) {
-  const [name, setName] = useState(node?.name || ''); const [port, setPort] = useState(node?.port || ''); const [yaml, setYaml] = useState(node ? JSON.stringify(node.config, null, 2) : 'name: 我的节点\ntype: vless\nserver: example.com\nport: 443\nuuid: 请替换为真实UUID\ntls: true\nservername: example.com'); const [enabled, setEnabled] = useState(node?.enabled ?? true); const [loading, setLoading] = useState(false); const [error, setError] = useState('');
-  const submit = async e => { e.preventDefault(); setLoading(true); setError(''); try { const body = node ? { name, port: Number(port), enabled, ...(!node.subscriptionId ? { yaml } : {}) } : { yaml, port: Number(port) || 0 }; await mutate(node ? `/nodes/${node.id}` : '/nodes', node ? 'PATCH' : 'POST', body, node ? '节点映射已保存，应用后生效' : '独立节点已添加'); onClose(); } catch (e) { setError(e.message); } finally { setLoading(false); } };
-  return <Modal title={node ? '编辑节点映射' : '添加独立节点'} subtitle={node?.subscriptionId ? '显示名称与端口独立保存，不受订阅刷新影响。' : '粘贴一个 Mihomo 节点的 YAML 或 JSON 配置。'} onClose={onClose}><form onSubmit={submit}><div className="form-grid">{node && <Field label="显示名称" wide><input value={name} onChange={e => setName(e.target.value)} required maxLength={200} /></Field>}<Field label="固定入口端口" hint={`可用范围 ${state.settings.portStart}–${state.settings.portEnd}${node ? '' : '，留空自动分配'}`} wide><input type="number" value={port} onChange={e => setPort(e.target.value)} min={state.settings.portStart} max={state.settings.portEnd} required={!!node} placeholder="自动分配" /></Field>{!node?.subscriptionId && <Field label="节点配置" wide><textarea className="code-input" rows={10} value={yaml} onChange={e => setYaml(e.target.value)} required spellCheck={false} /></Field>}</div>{node && <div className="setting-toggle"><div><strong>启用此节点</strong><p>停用后保留端口，但不生成监听入口。</p></div><Switch checked={enabled} label="启用此节点" onChange={setEnabled} /></div>}{error && <div className="inline-error" role="alert">{error}</div>}<div className="modal-form-footer"><Button type="button" onClick={onClose}>取消</Button><Button variant="primary" type="submit" loading={loading}>保存节点</Button></div></form></Modal>;
+  const [name, setName] = useState(node?.name || '');
+  const [port, setPort] = useState(node?.port || '');
+  const [content, setContent] = useState(node ? JSON.stringify(node.config, null, 2) : '');
+  const [enabled, setEnabled] = useState(node?.enabled ?? true);
+  const [loading, setLoading] = useState(false);
+  const [converting, setConverting] = useState(false);
+  const [conversion, setConversion] = useState(null);
+  const [error, setError] = useState('');
+  const fileInput = useRef(null);
+  const changeContent = value => { setContent(value); setConversion(null); setError(''); };
+
+  async function convert() {
+    setConverting(true); setError('');
+    try {
+      const result = await api('/nodes/convert', 'POST', { content });
+      setContent(result.yaml); setConversion(result);
+    } catch (e) { setError(e.message); }
+    finally { setConverting(false); }
+  }
+  async function readFile(event) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { setError('文件不能超过 5 MiB'); return; }
+    try { changeContent(await file.text()); }
+    catch { setError('无法读取文件，请重新选择或直接粘贴内容'); }
+  }
+  async function submit(event) {
+    event.preventDefault(); setLoading(true); setError('');
+    try {
+      const body = node
+        ? { name, port: Number(port), enabled, ...(!node.subscriptionId ? { yaml: content } : {}) }
+        : { content, port: Number(port) || 0 };
+      await mutate(node ? `/nodes/${node.id}` : '/nodes', node ? 'PATCH' : 'POST', body,
+        node ? '节点映射已保存，应用后生效' : '节点已导入并分配端口，应用后生效');
+      onClose();
+    } catch (e) { setError(e.message); }
+    finally { setLoading(false); }
+  }
+
+  return <Modal title={node ? '编辑节点映射' : '添加节点'}
+    subtitle={node?.subscriptionId ? '显示名称与端口独立保存，不受订阅刷新影响。' : node ? '编辑当前节点的 YAML / JSON 配置。' : '粘贴分享链接、Base64 订阅或 YAML / JSON，支持一次导入多个节点。'}
+    onClose={onClose}>
+    <form onSubmit={submit}>
+      <div className="form-grid">
+        {node && <Field label="显示名称" wide><input value={name} onChange={e => setName(e.target.value)} required maxLength={200} /></Field>}
+        {!node?.subscriptionId && <div className="node-import">
+          <Field label={node ? '节点配置' : '节点内容'} hint={node ? undefined : '分享链接每行一个；Base64 内容会自动解码。无需手动转换格式。'} wide>
+            <textarea className="code-input" rows={9} value={content} onChange={e => changeContent(e.target.value)}
+              placeholder={node ? undefined : 'vless://…#我的节点\nvmess://…\nss://…\n\n也可粘贴 Base64 内容或 Clash / Mihomo 配置'}
+              required spellCheck={false} disabled={converting || loading} autoFocus={!node} />
+          </Field>
+          {!node && <>
+            <div className="import-tools">
+              <input ref={fileInput} type="file" accept=".txt,.yaml,.yml,.json,.conf,text/plain,application/json" hidden onChange={readFile} />
+              <Button onClick={() => fileInput.current.click()} disabled={converting || loading}><Upload size={14} />选择文件</Button>
+              <Button variant="primary-soft" onClick={convert} loading={converting} disabled={!content.trim() || loading}>
+                {!converting && <Code2 size={15} />}识别并转换
+              </Button>
+            </div>
+            {conversion && <div className="import-result" role="status"><CheckCircle2 size={19} /><div>
+              <strong>已识别 {conversion.count} 个节点</strong>
+              <span>{conversion.types.map(type => type.toUpperCase()).join(' / ')} · 已转换为 YAML，可继续编辑</span>
+            </div></div>}
+            <p className="import-formats">支持 VLESS、VMess、SS / SSR、Trojan、AnyTLS、Hysteria / HY2、TUIC、HTTP、SOCKS5。</p>
+          </>}
+        </div>}
+        <Field label={node ? '固定入口端口' : '起始入口端口（可选）'}
+          hint={`可用范围 ${state.settings.portStart}–${state.settings.portEnd}${node ? '' : '。留空自动分配；批量导入时从指定端口连续分配。'}`} wide>
+          <input type="number" value={port} onChange={e => setPort(e.target.value)} min={state.settings.portStart} max={state.settings.portEnd} required={!!node} placeholder="自动分配" />
+        </Field>
+      </div>
+      {node && <div className="setting-toggle"><div><strong>启用此节点</strong><p>停用后保留端口，但不生成监听入口。</p></div><Switch checked={enabled} label="启用此节点" onChange={setEnabled} /></div>}
+      {error && <div className="inline-error" role="alert">{error}</div>}
+      <div className="modal-form-footer"><Button onClick={onClose}>取消</Button>
+        <Button variant="primary" type="submit" loading={loading} disabled={converting}>{node ? '保存节点' : '导入并分配端口'}</Button>
+      </div>
+    </form>
+  </Modal>;
 }
 
 function ExportModal({ ids, state, onClose, copy, notify }) {
@@ -42,6 +118,6 @@ function ConfirmModal({ title, text, confirm, danger, onClose, onConfirm }) { co
 
 function ConfigModal({ onClose, notify }) { const [config, setConfig] = useState(''); const [show, setShow] = useState(false); const [error, setError] = useState(''); useEffect(() => { let active = true; fetch('/api/config').then(async r => { if (!r.ok) throw new Error((await r.json()).error); return r.text(); }).then(text => { if (active) setConfig(text); }).catch(e => { if (active) setError(e.message); }); return () => { active = false; }; }, []); const masked = config.replace(/^(\s*(?:password|secret|uuid|private-key|public-key|token):).*/gm, '$1 "••••••••"'); return <Modal title="Mihomo 运行配置" subtitle="由当前节点映射生成，不包含订阅源的规则与远程脚本。" wide onClose={onClose}><div className="export-meta"><span>portpilot.yaml</span><button onClick={() => setShow(!show)}>{show ? '隐藏密钥' : '显示完整配置'}</button></div>{error ? <div className="inline-error">{error}</div> : <textarea className="code-input export-output" rows={16} readOnly value={show ? config : masked} aria-label="Mihomo 配置预览" />}<div className="subtle-note"><ShieldCheck size={14} />下载文件包含真实凭据，请勿提交到公开仓库。</div><div className="modal-form-footer"><Button onClick={onClose}>关闭</Button><Button variant="primary" disabled={!config} onClick={() => { download(config, 'portpilot.yaml', 'application/yaml'); notify('Mihomo 配置已下载'); }}><Download size={15} />下载完整配置</Button></div></Modal>; }
 
-function Guide({ onClose }) { return <Modal title="从订阅到固定代理入口" subtitle="让浏览器、脚本和常用工具直接使用你的节点。" wide onClose={onClose}><div className="guide-steps">{[['01', '导入 Clash 订阅', '粘贴订阅链接或 YAML 配置，PortPilot 为每个节点分配一个端口。'], ['02', '设置入口与访问凭据', '在运行配置中填写服务器公网 IP；在访问认证中设置代理账号密码。'], ['03', '连接同机 Mihomo', '下载生成的配置，用 Mihomo 加载；控制器地址及密钥需与面板一致。'], ['04', '应用配置并导出地址', '每个固定端口同时支持 HTTP 与 SOCKS5。测试连通后即可在工具中使用。']].map(([number, title, text]) => <div key={number}><span>{number}</span><div><h3>{title}</h3><p>{text}</p></div></div>)}</div><div className="guide-code"><span>启动示例</span><code>mihomo -d ./data -f ./data/mihomo.yaml</code></div><div className="guide-info"><CircleHelp size={17} /><p>SOCKS5H 表示在代理端解析域名。Chrome / Edge 建议用 HTTP 代理并填写认证信息。公网使用需放行代理端口；管理面板与 Mihomo 控制器推荐保留本机监听，通过 SSH 隧道访问。</p></div><a className="documentation-link" href="https://wiki.metacubex.one/config/inbound/listeners/mixed/" target="_blank" rel="noreferrer">Mihomo mixed 入口文档<ExternalLink size={14} /></a></Modal>; }
+function Guide({ onClose }) { return <Modal title="从订阅到固定代理入口" subtitle="让浏览器、脚本和常用工具直接使用你的节点。" wide onClose={onClose}><div className="guide-steps">{[['01', '导入订阅或节点', '粘贴订阅链接、节点分享链接、Base64 或 YAML 配置，为每个节点分配固定端口。'], ['02', '设置入口与访问凭据', '在运行配置中填写服务器公网 IP；在访问认证中设置代理账号密码。'], ['03', '连接同机 Mihomo', '下载生成的配置，用 Mihomo 加载；控制器地址及密钥需与面板一致。'], ['04', '应用配置并导出地址', '每个固定端口同时支持 HTTP 与 SOCKS5。测试连通后即可在工具中使用。']].map(([number, title, text]) => <div key={number}><span>{number}</span><div><h3>{title}</h3><p>{text}</p></div></div>)}</div><div className="guide-code"><span>启动示例</span><code>mihomo -d ./data -f ./data/mihomo.yaml</code></div><div className="guide-info"><CircleHelp size={17} /><p>SOCKS5H 表示在代理端解析域名。Chrome / Edge 建议用 HTTP 代理并填写认证信息。公网使用需放行代理端口；管理面板与 Mihomo 控制器推荐保留本机监听，通过 SSH 隧道访问。</p></div><a className="documentation-link" href="https://wiki.metacubex.one/config/inbound/listeners/mixed/" target="_blank" rel="noreferrer">Mihomo mixed 入口文档<ExternalLink size={14} /></a></Modal>; }
 
 export { Access, Settings, Logs, SubscriptionModal, NodeModal, ExportModal, ConfirmModal, ConfigModal, Guide };

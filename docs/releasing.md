@@ -21,18 +21,18 @@
 3. 给要发布的提交创建标签并推送：
 
    ```sh
-   git tag -a v0.1.1 -m "PortPilot v0.1.1"
-   git push origin v0.1.1
+   git tag -a v0.1.2 -m "PortPilot v0.1.2"
+   git push origin v0.1.2
    ```
 
 4. 在 Actions 的 `Publish container image` 查看结果。成功摘要包含镜像地址、标签和 digest。
 5. 首次生成的 GHCR 包默认是私有的。在 GitHub 个人主页的 Packages 中打开 `portpilot`，进入 Package settings，将可见性设为 **Public**，让开源用户免登录拉取。源码仓库公开不会自动将镜像包公开。
 
-稳定版本 `v0.1.1` 会生成：
+稳定版本 `v0.1.2` 会生成：
 
 ```text
-ghcr.io/maodeyu180/portpilot:v0.1.1
-ghcr.io/maodeyu180/portpilot:0.1.1
+ghcr.io/maodeyu180/portpilot:v0.1.2
+ghcr.io/maodeyu180/portpilot:0.1.2
 ghcr.io/maodeyu180/portpilot:0.1
 ghcr.io/maodeyu180/portpilot:latest
 ```
@@ -45,7 +45,7 @@ ghcr.io/maodeyu180/portpilot:latest
 
 ```text
 PORTPILOT_IMAGE_REPOSITORY=ghcr.io/maodeyu180/portpilot
-PORTPILOT_IMAGE_TAG=0.1.1
+PORTPILOT_IMAGE_TAG=0.1.2
 ```
 
 然后执行：

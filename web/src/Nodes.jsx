@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowDownToLine, ArrowUpRight, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Copy, Ellipsis, FolderSync, Layers3, ListFilter, Plus, Search, Settings2, ShieldCheck, Trash2, X, Zap } from 'lucide-react';
 import { Badge, Button, IconButton, Switch, Empty, country, formatTime } from './ui.jsx';
+import NodeMenu from './NodeMenu.jsx';
 
 function statusMatches(node, status) {
   if(status==='all') return true;
@@ -21,6 +22,7 @@ export default function Nodes({ state, core, mutate, busy, run, setModal, export
   const [selected,setSelected]=useState(new Set());
   const [page,setPage]=useState(1);
   const [menu,setMenu]=useState(null);
+  const closeMenu=useCallback(()=>setMenu(null),[]);
   const nodes=state.nodes;
   const enabled=nodes.filter(n=>n.enabled&&n.available).length;
   const filtered=useMemo(()=>nodes.filter(n=>(!search||`${n.name} ${n.port} ${n.server}`.toLowerCase().includes(search.toLowerCase()))&&(type==='all'||n.type===type)&&(subscription==='all'||n.subscriptionId===subscription)&&statusMatches(n,status)).sort((a,b)=>a.port-b.port),[nodes,search,type,status,subscription]);
@@ -30,6 +32,8 @@ export default function Nodes({ state, core, mutate, busy, run, setModal, export
   const pages=Math.max(1,Math.ceil(filtered.length/10)), currentPage=Math.min(page,pages);
   const visible=filtered.slice((currentPage-1)*10,currentPage*10);
   const allChecked=visible.length>0&&visible.every(n=>selected.has(n.id));
+  const menuNode=visible.find(n=>n.id===menu?.id);
+  useEffect(closeMenu,[currentPage,search,type,status,subscription,closeMenu]);
   const tabs=[['all','全部节点',nodes.length],['tested','测试通过',nodes.filter(n=>statusMatches(n,'tested')).length],['failed','未通过',nodes.filter(n=>statusMatches(n,'failed')).length],['disabled','已停用',nodes.filter(n=>!n.enabled).length]];
   function select(id){setSelected(prev=>{const next=new Set(prev);next.has(id)?next.delete(id):next.add(id);return next;});}
   function resetFilters(){setSearch('');setType('all');setStatus('all');setSubscription('all');}
@@ -49,10 +53,12 @@ export default function Nodes({ state, core, mutate, busy, run, setModal, export
           <td><button className="endpoint" title="复制包含认证的 HTTP 代理地址" onClick={()=>exportNode(n)} disabled={!n.enabled||!n.available}><span>{state.settings.publicHost.includes(':')?`[${state.settings.publicHost}]`:state.settings.publicHost}<strong>:{n.port}</strong></span><Copy size={14}/></button><div className="endpoint-protocol">HTTP <span>/</span> SOCKS5</div></td>
           <td><span className={`latency ${n.testedAt?n.latency!==null?'success':'failed':''}`}><span className={`status-dot ${n.testedAt?n.latency!==null?'green':'amber':'gray'}`}/>{n.testedAt?n.latency!==null?`${n.latency.toLocaleString()} ms`:'未通过':'尚未测试'}</span>{n.testedAt&&<div className="tested-time">{formatTime(n.testedAt)}</div>}</td>
           <td><Switch checked={n.enabled} label={`${n.name} 启用状态`} disabled={!!busy||!n.available} onChange={enabled=>run(`toggle-${n.id}`,()=>mutate(`/nodes/${n.id}`,'PATCH',{enabled}))}/></td>
-          <td><div className="row-actions"><button className="row-edit" onClick={()=>setModal({type:'node',node:n})}>编辑</button><div className="row-menu-container"><IconButton title={`${n.name} 更多操作`} onClick={()=>setMenu(menu===n.id?null:n.id)}><Ellipsis size={19}/></IconButton>{menu===n.id&&<><div className="menu-dismiss" onClick={()=>setMenu(null)}/><div className="row-menu"><button onClick={()=>{setMenu(null);setModal({type:'export',ids:[n.id]});}}><Copy size={15}/>导出地址</button><button className="danger-text" onClick={()=>{setMenu(null);setModal({type:'delete',title:'删除节点',text:`确定删除「${n.name}」及其端口映射？订阅节点会在下次同步时重新导入；临时停用可使用开关。`,action:()=>mutate(`/nodes/${n.id}`,'DELETE',undefined,'节点已删除')});}}><Trash2 size={15}/>删除节点</button></div></>}</div></div></td>
+          <td><div className="row-actions"><button className="row-edit" onClick={()=>setModal({type:'node',node:n})}>编辑</button><div className="row-menu-container"><IconButton title={`${n.name} 更多操作`} aria-haspopup="menu" aria-expanded={menu?.id===n.id} aria-controls={menu?.id===n.id?'node-actions-menu':undefined} onClick={event=>setMenu(menu?.id===n.id?null:{id:n.id,anchor:event.currentTarget})}><Ellipsis size={19}/></IconButton></div></div></td>
         </tr>)}</tbody></table>{!filtered.length&&<Empty title="没有找到匹配的节点" text="试试其他关键词，或调整筛选条件。" action={<Button onClick={resetFilters}>重置筛选</Button>}/>}</div>
         <div className="pagination"><span>共 <strong>{filtered.length}</strong> 个节点<span className="inline-divider">·</span>每页 10 条</span><div><span className="page-range">{filtered.length?(currentPage-1)*10+1:0}–{Math.min(currentPage*10,filtered.length)} / {filtered.length}</span><IconButton title="上一页" disabled={currentPage===1} onClick={()=>setPage(currentPage-1)}><ChevronLeft size={17}/></IconButton>{Array.from({length:pages},(_,i)=>i+1).filter(n=>n===1||n===pages||Math.abs(n-currentPage)<=1).map((n,index,arr)=><React.Fragment key={n}>{index>0&&n-arr[index-1]>1&&<span className="page-ellipsis">…</span>}<button className={`page-number ${n===currentPage?'active':''}`} onClick={()=>setPage(n)} aria-label={`第 ${n} 页`} aria-current={n===currentPage?'page':undefined}>{n}</button></React.Fragment>)}<IconButton title="下一页" disabled={currentPage===pages} onClick={()=>setPage(currentPage+1)}><ChevronRight size={17}/></IconButton></div></div>
       </>}
-    </section><div className="below-table"><ShieldCheck size={15}/><span>HTTP 与 SOCKS5 共用端口，均启用账号密码认证。</span><button onClick={()=>setModal({type:'guide'})}>查看连接说明<ArrowUpRight size={14}/></button></div>
+    </section>
+    {menuNode&&<NodeMenu key={menuNode.id} anchor={menu.anchor} label={menuNode.name} onClose={closeMenu} onExport={()=>setModal({type:'export',ids:[menuNode.id]})} onDelete={()=>setModal({type:'delete',title:'删除节点',text:`确定删除「${menuNode.name}」及其端口映射？订阅节点会在下次同步时重新导入；临时停用可使用开关。`,action:()=>mutate(`/nodes/${menuNode.id}`,'DELETE',undefined,'节点已删除')})}/>}
+    <div className="below-table"><ShieldCheck size={15}/><span>HTTP 与 SOCKS5 共用端口，均启用账号密码认证。</span><button onClick={()=>setModal({type:'guide'})}>查看连接说明<ArrowUpRight size={14}/></button></div>
   </>;
 }

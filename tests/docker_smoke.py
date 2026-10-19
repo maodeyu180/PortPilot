@@ -91,15 +91,17 @@ def main():
     upstream.daemon_threads = True
     worker = threading.Thread(target=upstream.serve_forever, daemon=True)
     worker.start()
-    fixture_id = None
+    fixture_ids = []
+    import_content = Path(__file__).with_name("fixtures").joinpath("import-uris.txt").read_text()
+    import_count = sum(bool(line.strip()) and not line.lstrip().startswith("#") for line in import_content.splitlines())
     try:
-        settings.update(publicHost="127.0.0.1", listenHost="127.0.0.1", portStart=args.proxy_port, portEnd=args.proxy_port + 4)
+        settings.update(publicHost="127.0.0.1", listenHost="127.0.0.1", portStart=args.proxy_port, portEnd=args.proxy_port + import_count + 4)
         api("/settings", "PUT", settings)
         for bad in ("", "short"):
             api("/settings", "PUT", {**settings, "password": bad}, expected=400)
         node = {"name": "Docker smoke local upstream", "type": "http", "server": "127.0.0.1", "port": upstream.server_address[1]}
         state = api("/nodes", "POST", {"yaml": json.dumps(node), "port": args.proxy_port}, expected=201)
-        fixture_id = state["nodes"][0]["id"]
+        fixture_ids = [state["nodes"][0]["id"]]
         api("/core/apply", "POST", {})
         checks = check_credentials("127.0.0.1", args.proxy_port, settings["username"], settings["password"])
         assert all(checks.values()), "listener authentication failed: " + str(checks)
@@ -132,16 +134,28 @@ def main():
             link = api("/export", "POST", {"protocol": protocol, "ids": [state["nodes"][0]["id"]]})["links"]
             parsed = urllib.parse.urlsplit(link)
             assert parsed.scheme == protocol and urllib.parse.unquote(parsed.username) == settings["username"] and urllib.parse.unquote(parsed.password) == settings["password"]
+        # Decode an encoded subscription, import its canonical YAML and ask the
+        # actual core to load all supported protocols and transport options.
+        encoded = base64.urlsafe_b64encode(import_content.encode()).decode().rstrip("=")
+        converted = api("/nodes/convert", "POST", {"content": encoded})
+        assert converted["count"] == import_count and len(converted["types"]) == 11, "protocol conversion lost nodes"
+        assert len(api("/state")["nodes"]) == 1, "conversion unexpectedly persisted nodes"
+        api("/nodes", "POST", {"content": import_content + "\nbroken-link"}, expected=400)
+        assert len(api("/state")["nodes"]) == 1, "malformed import was partially saved"
+        state = api("/nodes", "POST", {"content": converted["yaml"]}, expected=201)
+        fixture_ids = [node["id"] for node in state["nodes"]]
+        assert len(fixture_ids) == import_count + 1, "batch import did not persist every node"
+        api("/core/apply", "POST", {})
         # Leave a disabled fixture so a stopped sandbox cannot retain an active
         # proxy pointing at the short-lived upstream after this test exits.
-        api("/nodes/" + fixture_id, "PATCH", {"enabled": False})
+        api("/nodes/batch", "POST", {"ids": fixture_ids, "enabled": False})
         api("/core/apply", "POST", {})
-        fixture_id = None
-        print(json.dumps({"bootstrap": "ok", "mandatory_credentials": checks, "http_forwarding": "ok", "socks5h_forwarding": "ok", "authenticated_exports": "ok", "fixture_disabled": True}))
+        fixture_ids = []
+        print(json.dumps({"bootstrap": "ok", "mandatory_credentials": checks, "http_forwarding": "ok", "socks5h_forwarding": "ok", "authenticated_exports": "ok", "imported_protocols": 11, "imported_fixtures": import_count, "mihomo_import_config": "ok", "fixture_disabled": True}))
     finally:
-        if fixture_id is not None:
+        if fixture_ids:
             try:
-                api("/nodes/" + fixture_id, "PATCH", {"enabled": False})
+                api("/nodes/batch", "POST", {"ids": fixture_ids, "enabled": False})
                 api("/core/apply", "POST", {})
             except Exception:
                 print("Fixture cleanup failed; stop the isolated Compose test project.")

@@ -4,10 +4,10 @@
 
 [![CI](https://github.com/maodeyu180/PortPilot/actions/workflows/ci.yml/badge.svg)](https://github.com/maodeyu180/PortPilot/actions/workflows/ci.yml)
 
-蓝白主题、轻量自托管的 Mihomo 订阅管理面板。把 Clash 订阅中的节点映射为带账号密码的 HTTP / SOCKS5 端口，在浏览器、脚本和工具里直接使用。
+蓝白主题、轻量自托管的 Mihomo 订阅管理面板。把订阅与节点分享链接映射为带账号密码的 HTTP / SOCKS5 端口，在浏览器、脚本和工具里直接使用。
 
 ```text
-Clash 订阅 → PortPilot → Mihomo
+订阅 / 节点 → PortPilot → Mihomo
                            ├── :20001 → 节点 A
                            ├── :20002 → 节点 B
                            └── :20003 → 节点 C
@@ -23,7 +23,8 @@ socks5h://用户名:密码@服务器:20001
 ## 功能
 
 - 服务概览展示节点数量、测试通过率、最近一次延迟分布、可用入口与操作记录，支持点击指标筛选节点。
-- 通过 URL 或 Clash / Mihomo YAML 导入订阅，按小时自动刷新。
+- 通过 URL 或粘贴内容导入订阅，自动识别 Clash / Mihomo YAML / JSON、节点分享链接和 Base64，按小时自动刷新。
+- 添加节点支持粘贴或选择文件，可先转换为 YAML 预览、编辑，再批量分配端口。
 - 订阅和独立节点的增删改查，按测试结果、协议和来源筛选，支持搜索、分页与批量启停。
 - 按「订阅 ID + 来源节点名」保存固定端口，刷新和排序不改变端口。
 - 源中消失的节点保留端口、标记失效；再次出现时恢复原映射。
@@ -86,7 +87,7 @@ npm run dev
 
 PortPilot 管理配置；[Mihomo](https://github.com/MetaCubeX/mihomo) 负责代理转发。Compose 已包含内核；以下手动安装步骤供原生二进制部署使用。
 
-1. 导入 Clash / Mihomo 格式订阅。
+1. 导入订阅，或粘贴节点分享链接、Base64、Clash / Mihomo 配置。
 2. 在「运行配置」填写客户端能够访问的 IP / 域名与端口范围。
 3. 在「访问认证」设置代理凭据。
 4. 下载生成的配置，保存为数据目录中的 `mihomo.yaml`。
@@ -124,8 +125,10 @@ PORTPILOT_ADMIN_PASSWORD='请替换为至少12位的管理密码' \
 - 「剩余流量」「距离下次重置剩余」「套餐到期」等订阅信息项单独展示，不占用代理端口。
 - 删除订阅会一并删除该来源的映射。单独删除订阅节点后，下次刷新会重新导入；长期停用请用开关。
 - 修改端口范围不会自动重排已有端口；新范围必须包含已有映射。
-- 仅导入 `proxies`，不执行来源中的规则、脚本、远程 UI 或 TUN 设置。使用 `dialer-proxy` 的链式节点暂不支持。
-- 目前不直接解析 Base64 节点列表、`vmess://`、`vless://` 等 URI 订阅，请在供应商处选择 Clash / Mihomo 输出。
+- 仅提取节点，不执行来源中的规则、脚本、远程 UI 或 TUN 设置。使用 `dialer-proxy` 的链式节点暂不支持。
+- 支持单个 YAML / JSON 节点、`proxies` 配置、节点数组、每行一条的分享链接，以及这些内容的标准 / URL-safe Base64（允许换行和省略补位）。单次上限 5 MiB、2000 个节点。
+- 分享链接支持 VLESS、VMess（Base64 JSON）、Shadowsocks（SIP002 / 旧版）、SSR、Trojan、AnyTLS、Hysteria、Hysteria2 / HY2、TUIC v5、HTTP / HTTPS、SOCKS / SOCKS5 / SOCKS5H。VLESS / VMess / Trojan 支持 TCP、WS、HTTP、H2、gRPC、HTTPUpgrade；保留适用协议的 TLS / Reality、SNI、ALPN、指纹与认证参数。其他协议和传输方式请使用 Mihomo YAML。
+- 「添加节点」的“识别并转换”只预览，不保存或连接上游；可跳过转换直接导入。端口留空时自动分配，填写时按输入顺序连续分配。格式错误、重名或端口冲突会取消整批操作，不会保存部分节点。
 - 连接测试测量内核访问测试 URL 的延迟，**不代表公网端口已放行或出口 IP 已核实**。
 - 控制器地址或密钥变更后，需同步修改内核启动配置。后续应用通过 `PUT /configs` 热加载；不管理内核进程的启动、停止和升级。
 
@@ -135,7 +138,9 @@ PORTPILOT_ADMIN_PASSWORD='请替换为至少12位的管理密码' \
 make test
 ```
 
-覆盖订阅解析、端口保留、失效恢复、事务回滚、并发存储、YAML 路由、凭据转义、认证、跨站请求、订阅 / 节点管理及内核配置应用。生产构建执行 `npm run build`。
+覆盖订阅与分享链接解析、Base64 兼容、端口保留、失效恢复、批量导入回滚、并发存储、YAML 路由、凭据转义、认证、跨站请求、订阅 / 节点管理及内核配置应用。生产构建执行 `npm run build`。Docker 集成检查还会把 18 个分享链接样例转换后交给真实 Mihomo 加载，并验证 HTTP / SOCKS5H 的认证与转发。
+
+本地已有 Mihomo 时，可指定 `PORTPILOT_MIHOMO_TEST_BINARY=/绝对路径/mihomo make test`，额外检查转换配置与内核的兼容性。
 
 ## 目录
 

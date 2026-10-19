@@ -116,6 +116,7 @@ func (a *App) Handler(assets fs.FS) http.Handler {
 		respond(w, 200, a.store.Snapshot())
 	})
 	mux.HandleFunc("POST /api/nodes", a.addNode)
+	mux.HandleFunc("POST /api/nodes/convert", a.convertNodes)
 	mux.HandleFunc("PATCH /api/nodes/{id}", a.editNode)
 	mux.HandleFunc("DELETE /api/nodes/{id}", a.deleteNode)
 	mux.HandleFunc("POST /api/nodes/batch", a.batchNodes)
@@ -360,42 +361,81 @@ func (a *App) deleteSubscription(w http.ResponseWriter, r *http.Request) {
 	respond(w, 200, a.store.Snapshot())
 }
 
-func (a *App) addNode(w http.ResponseWriter, r *http.Request) {
+func (a *App) convertNodes(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		YAML string `json:"yaml"`
-		Port int    `json:"port"`
+		Content string `json:"content"`
 	}
 	if err := decode(r, &body); err != nil {
 		fail(w, 400, err.Error())
 		return
 	}
-	var p map[string]any
-	if yaml.Unmarshal([]byte(body.YAML), &p) != nil {
-		fail(w, 400, "节点 YAML 格式有误")
-		return
-	}
-	data, _ := yaml.Marshal(map[string]any{"proxies": []map[string]any{p}})
-	proxies, err := parseProxies(data)
+	proxies, err := parseProxies([]byte(body.Content))
 	if err != nil {
 		fail(w, 400, err.Error())
 		return
 	}
-	p = proxies[0]
+	data, err := marshalImportedProxies(proxies)
+	if err != nil {
+		fail(w, 400, "无法生成节点配置")
+		return
+	}
+	types := []string{}
+	seen := map[string]bool{}
+	for _, p := range proxies {
+		typ := p["type"].(string)
+		if !seen[typ] {
+			types = append(types, typ)
+			seen[typ] = true
+		}
+	}
+	respond(w, 200, map[string]any{"yaml": string(data), "count": len(proxies), "types": types})
+}
+
+func (a *App) addNode(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Content string `json:"content"`
+		YAML    string `json:"yaml"` // Kept for clients using the original single-node API.
+		Port    int    `json:"port"`
+	}
+	if err := decode(r, &body); err != nil {
+		fail(w, 400, err.Error())
+		return
+	}
+	if body.Content != "" && body.YAML != "" {
+		fail(w, 400, "content 与 yaml 只能提供一项")
+		return
+	}
+	content := body.Content
+	if content == "" {
+		content = body.YAML
+	}
+	proxies, err := parseProxies([]byte(content))
+	if err != nil {
+		fail(w, 400, err.Error())
+		return
+	}
 	err = a.store.Update(func(st *State) error {
-		port := body.Port
-		if port == 0 {
-			var err error
-			port, err = allocatePort(st)
-			if err != nil {
+		if body.Port != 0 {
+			if err := checkPort(st, body.Port, ""); err != nil {
 				return err
 			}
 		}
-		if err := checkPort(st, port, ""); err != nil {
-			return err
+		for i, p := range proxies {
+			port := body.Port + i
+			if body.Port == 0 {
+				var err error
+				port, err = allocatePort(st)
+				if err != nil {
+					return err
+				}
+			}
+			if err := checkPort(st, port, ""); err != nil {
+				return fmt.Errorf("第 %d 个节点：%w", i+1, err)
+			}
+			st.Nodes = append(st.Nodes, Node{ID: randomID(), Name: p["name"].(string), SourceName: p["name"].(string), Type: p["type"].(string), Server: p["server"].(string), Port: port, Enabled: true, Available: true, Config: p})
 		}
-		st.Nodes = append(st.Nodes, Node{ID: randomID(), Name: fmt.Sprint(p["name"]), SourceName: fmt.Sprint(p["name"]), Type: fmt.Sprint(p["type"]), Server: fmt.Sprint(p["server"]), Port: port, Enabled: true, Available: true, Config: p})
 		st.Revision++
-		st.event("success", "已添加独立节点")
+		st.event("success", fmt.Sprintf("已添加 %d 个独立节点", len(proxies)))
 		return nil
 	})
 	if err != nil {

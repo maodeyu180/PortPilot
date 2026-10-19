@@ -1,0 +1,19 @@
+# Synthetic test nodes only; no reachable upstreams or real credentials.
+vless://12345678-1234-1234-1234-123456789abc@127.0.0.1:443?security=reality&pbk=AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE&sid=abcd&fp=chrome&sni=example.com#VLESS-Reality
+vless://12345678-1234-1234-1234-123456789abc@127.0.0.1:443?security=tls&type=ws&host=cdn.example&path=%2Fws#VLESS-WS
+vless://12345678-1234-1234-1234-123456789abc@127.0.0.1:443?security=tls&type=grpc&serviceName=service#VLESS-gRPC
+vless://12345678-1234-1234-1234-123456789abc@127.0.0.1:443?security=tls&type=httpupgrade&path=%2Fupgrade#VLESS-Upgrade
+vless://12345678-1234-1234-1234-123456789abc@127.0.0.1:443?security=tls&type=h2&host=cdn.example&path=%2Fh2#VLESS-H2
+vless://12345678-1234-1234-1234-123456789abc@127.0.0.1:8080?type=tcp&headerType=http&host=cdn.example&path=%2Fhttp#VLESS-HTTP
+vmess://eyJ2IjogIjIiLCAicHMiOiAiVk1lc3MtV1MiLCAiYWRkIjogIjEyNy4wLjAuMSIsICJwb3J0IjogIjQ0MyIsICJpZCI6ICIxMjM0NTY3OC0xMjM0LTEyMzQtMTIzNC0xMjM0NTY3ODlhYmMiLCAiYWlkIjogMCwgInNjeSI6ICJhdXRvIiwgIm5ldCI6ICJ3cyIsICJ0eXBlIjogIm5vbmUiLCAiaG9zdCI6ICJjZG4uZXhhbXBsZSIsICJwYXRoIjogIi92bWVzcyIsICJ0bHMiOiAidGxzIiwgInNuaSI6ICJleGFtcGxlLmNvbSJ9
+ss://YWVzLTEyOC1nY206c2FtcGxlLXBhc3N3b3Jk@127.0.0.1:8388?plugin=obfs-local%3Bobfs%3Dhttp%3Bobfs-host%3Dcdn.example#SS-SIP002
+ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTpzYW1wbGUtcGFzc3dvcmRAMTI3LjAuMC4xOjgzODg#SS-Legacy
+ssr://MTI3LjAuMC4xOjgzODg6YXV0aF9hZXMxMjhfbWQ1OmFlcy0xMjgtY2ZiOnRsczEuMl90aWNrZXRfYXV0aDpjMkZ0Y0d4bExYQmhjM04zYjNKay8_cmVtYXJrcz1VMU5TTFZSbGMzUSZvYmZzcGFyYW09WTJSdUxtVjRZVzF3YkdV
+trojan://sample-password@127.0.0.1:443?type=grpc&serviceName=trojan&sni=example.com#Trojan-gRPC
+anytls://sample-password@127.0.0.1:443?sni=example.com&idle-session-timeout=30#AnyTLS-Test
+hysteria://127.0.0.1:443?auth=sample-password&upmbps=20&downmbps=100&peer=example.com#Hysteria-Test
+hy2://sample-password@127.0.0.1:443?obfs=salamander&obfs-password=sample-obfs&sni=example.com#HY2-Test
+tuic://12345678-1234-1234-1234-123456789abc:sample-password@127.0.0.1:443?congestion-controller=bbr&udp-relay-mode=native&alpn=h3#TUIC-Test
+http://sample:sample-password@127.0.0.1:8080#HTTP-Test
+https://sample:sample-password@127.0.0.1:8443#HTTPS-Test
+socks5://sample:sample-password@127.0.0.1:1080#SOCKS5-Test

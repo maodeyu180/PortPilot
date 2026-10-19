@@ -11,8 +11,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"gopkg.in/yaml.v3"
 )
 
 const maxSubscriptionSize = 5 << 20
@@ -31,38 +29,6 @@ func separateSubscriptionInfo(proxies []map[string]any) ([]map[string]any, []str
 		}
 	}
 	return nodes, info
-}
-
-func parseProxies(data []byte) ([]map[string]any, error) {
-	var doc struct {
-		Proxies []map[string]any `yaml:"proxies"`
-	}
-	if err := yaml.Unmarshal(data, &doc); err != nil {
-		return nil, fmt.Errorf("无法解析为 Clash YAML 配置，请检查订阅格式")
-	}
-	if len(doc.Proxies) == 0 {
-		return nil, fmt.Errorf("未找到 proxies 节点；请选择 Clash / Mihomo 格式的订阅")
-	}
-	if len(doc.Proxies) > 2000 {
-		return nil, fmt.Errorf("单次最多导入 2000 个节点")
-	}
-	seen := map[string]bool{}
-	for _, p := range doc.Proxies {
-		name, _ := p["name"].(string)
-		typ, _ := p["type"].(string)
-		server, _ := p["server"].(string)
-		if strings.TrimSpace(name) == "" || typ == "" || server == "" {
-			return nil, fmt.Errorf("每个节点都须包含 name、type 和 server")
-		}
-		if seen[name] {
-			return nil, fmt.Errorf("订阅中存在重名节点，请先在来源处修正")
-		}
-		seen[name] = true
-		if _, exists := p["dialer-proxy"]; exists {
-			return nil, fmt.Errorf("暂不支持包含 dialer-proxy 的链式节点，请使用独立节点")
-		}
-	}
-	return doc.Proxies, nil
 }
 
 func allocatePort(st *State) (int, error) {
