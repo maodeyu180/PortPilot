@@ -14,25 +14,25 @@
 
 普通代码推送不会直接更换线上程序或推送正式镜像。版本号由维护者选择，Actions 根据标签构建和推送。
 
-## 第一次发布
+## 发布新版本
 
 1. 在 GitHub 仓库的 Actions 页面确认工作流可运行。若账号策略限制了 Actions 或写入 Packages，需要允许对应权限。
 2. 将最终代码推到 `main`，等待 CI 成功。
 3. 给要发布的提交创建标签并推送：
 
    ```sh
-   git tag -a v0.1.0 -m "PortPilot v0.1.0"
-   git push origin v0.1.0
+   git tag -a v0.1.1 -m "PortPilot v0.1.1"
+   git push origin v0.1.1
    ```
 
 4. 在 Actions 的 `Publish container image` 查看结果。成功摘要包含镜像地址、标签和 digest。
 5. 首次生成的 GHCR 包默认是私有的。在 GitHub 个人主页的 Packages 中打开 `portpilot`，进入 Package settings，将可见性设为 **Public**，让开源用户免登录拉取。源码仓库公开不会自动将镜像包公开。
 
-稳定版本 `v0.1.0` 会生成：
+稳定版本 `v0.1.1` 会生成：
 
 ```text
-ghcr.io/maodeyu180/portpilot:v0.1.0
-ghcr.io/maodeyu180/portpilot:0.1.0
+ghcr.io/maodeyu180/portpilot:v0.1.1
+ghcr.io/maodeyu180/portpilot:0.1.1
 ghcr.io/maodeyu180/portpilot:0.1
 ghcr.io/maodeyu180/portpilot:latest
 ```
@@ -41,11 +41,11 @@ ghcr.io/maodeyu180/portpilot:latest
 
 ## 使用已发布镜像
 
-进入源码目录，运行 `sh scripts/setup.sh` 生成 `.env`。保留随机管理密码，并将其中两项改为：
+进入源码目录，运行 `sh scripts/setup.sh` 生成 `.env`。`v0.1.1` 起管理密码可留空，在首次访问时直接设置并确认；也可提前填写 `PORTPILOT_ADMIN_PASSWORD`。已有管理密码会从数据卷保留。将镜像来源和版本设为：
 
 ```text
 PORTPILOT_IMAGE_REPOSITORY=ghcr.io/maodeyu180/portpilot
-PORTPILOT_IMAGE_TAG=0.1.0
+PORTPILOT_IMAGE_TAG=0.1.1
 ```
 
 然后执行：
@@ -56,6 +56,8 @@ docker compose up -d --no-build --wait
 ```
 
 面板与初始化服务使用同一镜像，Mihomo 仍使用其官方镜像。不需要在服务器编译 Node 或 Go。
+
+使用旧版 `v0.1.0` 镜像时，必须提前填写至少 12 个字符的 `PORTPILOT_ADMIN_PASSWORD`；该版本不支持网页首次设密。
 
 升级时先备份数据，修改版本号，再只更新面板：
 

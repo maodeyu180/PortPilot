@@ -137,7 +137,7 @@ export default function App() {
           <button title={collapsed ? '展开侧边栏' : '收起侧边栏'} className="collapse-button" onClick={() => setCollapsed(!collapsed)}>{collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}<span>收起侧边栏</span></button>
           {session?.passwordRequired && <button title="退出登录" onClick={() => run('logout', async () => { await api('/logout', 'POST', {}); setSession({ authenticated: false, passwordRequired: true }); })}><LogOut size={18} /><span>退出登录</span></button>}
         </div>
-        <div className="sidebar-footer"><ShieldCheck size={13} /><span>PortPilot v0.1.0 <span className="footer-divider">·</span> 自托管</span></div>
+        <div className="sidebar-footer"><ShieldCheck size={13} /><span>PortPilot v0.1.1 <span className="footer-divider">·</span> 自托管</span></div>
       </div>
     </aside>
     <div className="workspace">
