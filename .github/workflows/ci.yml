@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Tests and Docker smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GOCACHE: ${{ github.workspace }}/.cache/go-build
+      GOMODCACHE: ${{ github.workspace }}/.cache/go-mod
+      GOPATH: ${{ github.workspace }}/.cache/go
+      npm_config_cache: ${{ github.workspace }}/.cache/npm
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: '1.26.x'
+          cache-dependency-path: go.sum
+      - name: Install project dependencies
+        run: make install
+      - name: Check formatting and scripts
+        run: |
+          if [ -n "$(gofmt -l cmd internal)" ]; then
+            gofmt -l cmd internal
+            exit 1
+          fi
+          sh -n scripts/setup.sh
+          python3 -m py_compile tests/docker_smoke.py tests/proxy_auth.py
+      - name: Build UI and run Go race tests
+        run: make test
+      - name: Start isolated Docker stack
+        id: docker
+        run: |
+          sh scripts/setup.sh
+          cat >> .env <<'EOF'
+          PORTPILOT_LISTEN=127.0.0.1:18787
+          PORTPILOT_CONTROLLER_URL=http://127.0.0.1:19092
+          PORTPILOT_PUBLIC_HOST=127.0.0.1
+          PORTPILOT_IMAGE_TAG=ci
+          EOF
+          docker compose -p portpilot-ci config --quiet
+          docker compose -p portpilot-ci up -d --build --wait --wait-timeout 90
+      - name: Test HTTP and SOCKS5H authentication and forwarding
+        run: python3 tests/docker_smoke.py --base-url http://127.0.0.1:18787 --env-file .env
+      - name: Show Docker logs after failure
+        if: failure() && steps.docker.outcome != 'skipped'
+        run: docker compose -p portpilot-ci logs --tail 100
+      - name: Clean up isolated Docker stack
+        if: always() && steps.docker.outcome != 'skipped'
+        run: docker compose -p portpilot-ci down --volumes --remove-orphans

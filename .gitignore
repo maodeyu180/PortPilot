@@ -1,0 +1,14 @@
+/.cache/
+/.artifacts/
+/data/
+/bin/
+/backups/
+/web/node_modules/
+/web/dist/
+.env
+.env.*
+!.env.example
+admin.env
+*.log
+__pycache__/
+.DS_Store

@@ -1,0 +1,14 @@
+proxies:
+  - name: 香港示例节点
+    type: anytls
+    server: hk.example.com
+    port: 443
+    password: replace-with-upstream-password
+    sni: hk.example.com
+  - name: 日本示例节点
+    type: vless
+    server: jp.example.com
+    port: 443
+    uuid: 12345678-1234-1234-1234-123456789abc
+    tls: true
+    servername: jp.example.com

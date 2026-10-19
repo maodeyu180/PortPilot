@@ -1,0 +1,25 @@
+[Unit]
+Description=Mihomo proxy core for PortPilot
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=portpilot
+Group=portpilot
+WorkingDirectory=/opt/portpilot
+ExecStartPre=/opt/portpilot/mihomo -t -d /opt/portpilot/data -f /opt/portpilot/data/mihomo.yaml
+ExecStart=/opt/portpilot/mihomo -d /opt/portpilot/data -f /opt/portpilot/data/mihomo.yaml
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/portpilot/data
+LimitNOFILE=65536
+MemoryMax=256M
+
+[Install]
+WantedBy=multi-user.target

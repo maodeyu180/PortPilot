@@ -1,0 +1,13 @@
+.git
+.cache
+.artifacts
+data
+bin
+backups
+web/node_modules
+web/dist
+.env
+.env.*
+admin.env
+tests
+**/__pycache__

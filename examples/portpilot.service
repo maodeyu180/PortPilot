@@ -1,0 +1,24 @@
+[Unit]
+Description=PortPilot proxy management panel
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=portpilot
+Group=portpilot
+WorkingDirectory=/opt/portpilot
+EnvironmentFile=/opt/portpilot/admin.env
+ExecStart=/opt/portpilot/portpilot -listen 0.0.0.0:8787 -data /opt/portpilot/data
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/portpilot/data
+MemoryMax=128M
+
+[Install]
+WantedBy=multi-user.target
