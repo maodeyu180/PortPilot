@@ -2,7 +2,7 @@
 
 源码仓库：[maodeyu180/PortPilot](https://github.com/maodeyu180/PortPilot)。
 
-使用 GitHub Actions 构建镜像并发布到 GitHub Container Registry（GHCR）。不需要 Docker Hub 账号，也不需要在仓库中保存个人访问 Token；工作流使用 GitHub 自动提供的 `GITHUB_TOKEN`，发布任务仅申请 `contents: read` 和 `packages: write`。
+使用 GitHub Actions 构建镜像并发布到 GitHub Container Registry（GHCR），配置 Docker Hub 凭据后会同时发布到 Docker Hub。GHCR 使用 GitHub 自动提供的 `GITHUB_TOKEN`，发布任务仅申请 `contents: read` 和 `packages: write`；只使用 GHCR 时无需额外配置凭据。
 
 ## 触发方式
 
@@ -68,6 +68,17 @@ docker compose up -d --no-deps --no-build portpilot
 
 ## Docker Hub 可选
 
-目前默认只发布 GHCR。如果后续需要同步 Docker Hub，再配置 Docker Hub 用户名以及具有镜像写权限的 Access Token：用户名可作为 Actions Variable，Token 保存在仓库 Actions Secrets 中。不要将 Token 写入源码、`.env.example` 或聊天记录。
+在仓库 **Settings → Secrets and variables → Actions** 配置以下两项：
 
-参考：[GitHub 镜像发布](https://docs.github.com/en/actions/tutorials/publish-packages/publish-docker-images)、[GHCR 认证与可见性](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)。
+| 标签页 | 新增入口 | Name | Value / Secret |
+| --- | --- | --- | --- |
+| Secrets | New repository secret | `DOCKERHUB_TOKEN` | Docker Hub Access Token，需有镜像写权限 |
+| Variables | New repository variable | `DOCKERHUB_USERNAME` | Docker Hub 登录用户名（Docker ID，不是邮箱，也不一定与 GitHub 用户名相同） |
+
+直接入口：[填写 Token](https://github.com/maodeyu180/PortPilot/settings/secrets/actions)、[填写用户名](https://github.com/maodeyu180/PortPilot/settings/variables/actions)。只需这一枚 Token 和用户名，不需要保存 Docker Hub 账号密码。不要将 Token 写入源码、`.env.example` 或聊天记录。
+
+在 Docker Hub 用户名对应的空间准备公开的 `portpilot` 镜像仓库。两项配置齐全后，下一个版本标签会同时发布到 GHCR 和 `<Docker ID>/portpilot`，使用相同版本标签并支持 amd64 / arm64。没有配置这两项时仅发布 GHCR；只配置其中一项会报错，避免误以为 Docker Hub 已完成发布。保存配置本身不会触发发布。
+
+使用 Docker Hub 镜像时，将 `.env` 中的 `PORTPILOT_IMAGE_REPOSITORY` 设为 `<Docker ID>/portpilot`，`PORTPILOT_IMAGE_TAG` 仍填写所需版本号。
+
+参考：[GitHub 镜像发布](https://docs.github.com/en/actions/tutorials/publish-packages/publish-docker-images)、[GHCR 认证与可见性](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)、[Docker 多仓库发布](https://docs.docker.com/build/ci/github-actions/push-multi-registries/)。

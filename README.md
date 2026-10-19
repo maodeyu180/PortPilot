@@ -54,7 +54,7 @@ docker compose up -d --build --wait
 
 数据保存在 Compose 的 `data` 命名卷中（默认卷名 `portpilot_data`），不会写入镜像。`init` 服务完成后退出，面板和内核分别运行。升级、备份、迁移与依赖下载源设置见 [部署说明](docs/deployment.md)。
 
-正式版本支持从 GHCR 拉取 amd64 / arm64 镜像。镜像由版本标签触发 GitHub Actions 发布；首次发布和包公开完成后可使用，见 [版本发布与镜像安装](docs/releasing.md)。
+正式版本支持从 GHCR 拉取 amd64 / arm64 镜像，也可配置 Docker Hub 同步发布。镜像由版本标签触发 GitHub Actions 发布；首次发布和包公开完成后可使用，见 [版本发布与镜像安装](docs/releasing.md)。
 
 ## 本地启动
 

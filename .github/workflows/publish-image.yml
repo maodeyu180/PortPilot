@@ -28,16 +28,30 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
-      - name: Validate release tag and set image name
+      - name: Validate release tag and registry configuration
         id: image
         env:
           RELEASE_TAG: ${{ github.ref_name }}
+          DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
           if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
             printf '%s\n' 'Expected a version tag such as v0.1.0 or v0.2.0-rc.1.' >&2
             exit 1
           fi
-          printf 'name=ghcr.io/%s\n' "${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          image_repository="$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+          printf 'name=ghcr.io/%s\n' "$image_repository" >> "$GITHUB_OUTPUT"
+          if [[ -n "$DOCKERHUB_USERNAME" || -n "$DOCKERHUB_TOKEN" ]]; then
+            if [[ -z "$DOCKERHUB_USERNAME" || -z "$DOCKERHUB_TOKEN" ]]; then
+              printf '%s\n' 'Set both the DOCKERHUB_USERNAME Actions variable and DOCKERHUB_TOKEN Actions secret, or leave both unset.' >&2
+              exit 1
+            fi
+            if [[ ! "$DOCKERHUB_USERNAME" =~ ^[a-z0-9]+$ ]]; then
+              printf '%s\n' 'DOCKERHUB_USERNAME must be your lowercase Docker ID, not an email address.' >&2
+              exit 1
+            fi
+            printf 'dockerhub_name=%s/portpilot\n' "$DOCKERHUB_USERNAME" >> "$GITHUB_OUTPUT"
+          fi
       - name: Set up QEMU
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4
       - name: Set up Buildx
@@ -48,11 +62,19 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Log in to Docker Hub
+        if: steps.image.outputs.dockerhub_name != ''
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Generate image tags and labels
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
         with:
-          images: ${{ steps.image.outputs.name }}
+          images: |
+            ${{ steps.image.outputs.name }}
+            ${{ steps.image.outputs.dockerhub_name }}
           flavor: latest=auto
           tags: |
             type=ref,event=tag
@@ -75,11 +97,15 @@ jobs:
       - name: Write publication summary
         env:
           PUBLISHED_IMAGE: ${{ steps.image.outputs.name }}
+          DOCKERHUB_IMAGE: ${{ steps.image.outputs.dockerhub_name }}
           PUBLISHED_TAGS: ${{ steps.meta.outputs.tags }}
           PUBLISHED_DIGEST: ${{ steps.publish.outputs.digest }}
         run: |
           {
             printf 'Published `%s` for `linux/amd64` and `linux/arm64`.\n\n' "$PUBLISHED_IMAGE"
+            if [[ -n "$DOCKERHUB_IMAGE" ]]; then
+              printf 'Also published `%s` to Docker Hub.\n\n' "$DOCKERHUB_IMAGE"
+            fi
             printf '```text\n%s\n```\n\n' "$PUBLISHED_TAGS"
             printf 'Digest: `%s`\n' "$PUBLISHED_DIGEST"
           } >> "$GITHUB_STEP_SUMMARY"
