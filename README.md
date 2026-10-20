@@ -214,3 +214,7 @@ data/              私有运行数据（已忽略）
 PortPilot 使用 [MIT License](LICENSE)。Mihomo 为独立项目，按其自己的 GPL-3.0 许可证分发。PortPilot 的 UI、代码与发布包不包含用户订阅、账号密码或 Mihomo 二进制。
 
 本项目使用 Mihomo 原生 [mixed 监听入口](https://wiki.metacubex.one/config/inbound/listeners/mixed/)、[直接出口绑定](https://wiki.metacubex.one/config/inbound/listeners/) 和 [控制器 API](https://wiki.metacubex.one/api/)。
+
+## 致谢
+
+感谢 [LINUX DO 社区](https://linux.do/) 的交流与分享。
