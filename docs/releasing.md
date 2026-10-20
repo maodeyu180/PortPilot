@@ -2,11 +2,11 @@
 
 源码仓库：[maodeyu180/PortPilot](https://github.com/maodeyu180/PortPilot)。
 
-已发布的镜像同时提供 Docker Hub 与 GHCR 两个来源，支持 amd64 / arm64。当前安装版本为 `0.1.2`：
+已发布的镜像同时提供 Docker Hub 与 GHCR 两个来源，支持 amd64 / arm64。当前安装版本为 `0.1.3`：
 
 ```text
-maodeyu/portpilot:0.1.2
-ghcr.io/maodeyu180/portpilot:0.1.2
+maodeyu/portpilot:0.1.3
+ghcr.io/maodeyu180/portpilot:0.1.3
 ```
 
 ## 使用已发布镜像（免 clone）
@@ -63,18 +63,18 @@ docker compose up -d --no-deps --no-build --wait portpilot
 3. 给要发布的提交创建标签并推送：
 
    ```sh
-   git tag -a v0.1.2 -m "PortPilot v0.1.2"
-   git push origin v0.1.2
+   git tag -a v0.1.3 -m "PortPilot v0.1.3"
+   git push origin v0.1.3
    ```
 
 4. 在 Actions 的 `Publish container image` 查看结果。成功摘要包含镜像地址、标签和 digest。
 5. 首次生成的 GHCR 包默认是私有的。在 GitHub 个人主页的 Packages 中打开 `portpilot`，进入 Package settings，将可见性设为 **Public**，让开源用户免登录拉取。源码仓库公开不会自动将镜像包公开。
 
-稳定版本 `v0.1.2` 会生成：
+稳定版本 `v0.1.3` 会生成：
 
 ```text
-ghcr.io/maodeyu180/portpilot:v0.1.2
-ghcr.io/maodeyu180/portpilot:0.1.2
+ghcr.io/maodeyu180/portpilot:v0.1.3
+ghcr.io/maodeyu180/portpilot:0.1.3
 ghcr.io/maodeyu180/portpilot:0.1
 ghcr.io/maodeyu180/portpilot:latest
 ```

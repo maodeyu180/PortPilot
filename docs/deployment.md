@@ -22,7 +22,7 @@ docker compose pull
 docker compose up -d --wait
 ```
 
-默认拉取 `maodeyu/portpilot:0.1.2` 与 `metacubex/mihomo:v1.19.32`。面板镜像同时支持 amd64 / arm64，Docker 自动选择宿主机架构。此文件没有 `build` 配置，不依赖源码、Dockerfile 或初始化脚本；首次启动不需要 `.env`。
+默认拉取 `maodeyu/portpilot:0.1.3` 与 `metacubex/mihomo:v1.19.32`。面板镜像同时支持 amd64 / arm64，Docker 自动选择宿主机架构。此文件没有 `build` 配置，不依赖源码、Dockerfile 或初始化脚本；首次启动不需要 `.env`。
 
 访问 `http://服务器IP:8787`，在首次设置页填写至少 12 个字符的管理密码并再次确认，保存后自动进入控制台，无需查看启动日志。设置完成前，订阅、节点、配置导出等管理接口全部锁定，后台订阅同步也不会开始。
 
@@ -39,7 +39,7 @@ docker compose up -d --wait
 | 变量 | 默认值 | 作用 |
 | --- | --- | --- |
 | `PORTPILOT_IMAGE_REPOSITORY` | `maodeyu/portpilot` | 面板与初始化镜像；也可填写 `ghcr.io/maodeyu180/portpilot` |
-| `PORTPILOT_IMAGE_TAG` | `0.1.2` | 固定面板版本 |
+| `PORTPILOT_IMAGE_TAG` | `0.1.3` | 固定面板版本 |
 | `PORTPILOT_LISTEN` | `0.0.0.0:8787` | 面板监听地址 |
 | `PORTPILOT_ADMIN_PASSWORD` | 空 | 首次访问网页设置；也可提前指定至少 12 个字符的管理密码 |
 | `MIHOMO_IMAGE` | `metacubex/mihomo:v1.19.32` | 独立固定内核版本 |

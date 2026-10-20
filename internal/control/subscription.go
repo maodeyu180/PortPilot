@@ -54,6 +54,7 @@ func reconcile(st *State, subID string, proxies []map[string]any) error {
 		if st.Nodes[i].SubscriptionID == subID {
 			existing[st.Nodes[i].SourceName] = i
 			st.Nodes[i].Available = false
+			st.Nodes[i].clearExitIP()
 		}
 	}
 	for _, p := range proxies {

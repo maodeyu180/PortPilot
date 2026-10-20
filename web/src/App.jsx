@@ -35,6 +35,7 @@ export default function App() {
   const [modal, setModal] = useState(null);
   const [toast, setToast] = useState(null);
   const [busy, setBusy] = useState('');
+  const [testingIds, setTestingIds] = useState([]);
   const [loadError, setLoadError] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('portpilot.sidebarCollapsed') === 'true');
@@ -99,14 +100,31 @@ export default function App() {
       await copy(links);
     } catch (error) { notify(error.message, true); }
   }
-  async function testNodes(ids = []) {
-    await run('test', async () => {
-      const result = await api('/nodes/test', 'POST', { ids });
-      await load();
-      notify(`已完成 ${result.tested} 个节点的连接测试`);
+  async function testNodes(ids = [], key = 'test') {
+    await run(key, async () => {
+      const selected = new Set(ids);
+      setTestingIds(state.nodes.filter(node => node.enabled && node.available && (!selected.size || selected.has(node.id))).map(node => node.id));
+      try {
+        const result = await api('/nodes/test', 'POST', { ids });
+        await load();
+        notify(`已完成 ${result.tested} 个节点的连接测试`);
+      } finally {
+        setTestingIds([]);
+      }
     });
   }
-  const context = { state, setState, core, mutate, notify, run, busy, setModal, copy, exportNode, refreshCore, navigate, testNodes };
+  const testNode = id => testNodes([id], `test-${id}`);
+  async function queryExitIP(node) {
+    await run(`exit-ip-${node.id}`, async () => {
+      try {
+        const result = await api(`/nodes/${node.id}/exit-ip`, 'POST', {});
+        notify(`${node.name} 的出口 IP：${result.ip}`);
+      } finally {
+        await load();
+      }
+    });
+  }
+  const context = { state, setState, core, mutate, notify, run, busy, testingIds, setModal, copy, exportNode, refreshCore, navigate, testNode, testNodes, queryExitIP };
 
   if (session?.setupRequired) return <Setup onSuccess={setSession} onInitialized={setSession} />;
   if (session && !session.authenticated) return <Login onSuccess={setSession} />;
@@ -137,7 +155,7 @@ export default function App() {
           <button title={collapsed ? '展开侧边栏' : '收起侧边栏'} className="collapse-button" onClick={() => setCollapsed(!collapsed)}>{collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}<span>收起侧边栏</span></button>
           {session?.passwordRequired && <button title="退出登录" onClick={() => run('logout', async () => { await api('/logout', 'POST', {}); setSession({ authenticated: false, passwordRequired: true }); })}><LogOut size={18} /><span>退出登录</span></button>}
         </div>
-        <div className="sidebar-footer"><ShieldCheck size={13} /><span>PortPilot v0.1.2 <span className="footer-divider">·</span> 自托管</span></div>
+        <div className="sidebar-footer"><ShieldCheck size={13} /><span>PortPilot v0.1.3 <span className="footer-divider">·</span> 自托管</span></div>
       </div>
     </aside>
     <div className="workspace">

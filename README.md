@@ -26,7 +26,7 @@ socks5h://用户名:密码@服务器:20001
 
 ## Docker Compose 启动（Linux，推荐）
 
-直接使用已发布的 Docker Hub 镜像 `maodeyu/portpilot:0.1.2`，支持 amd64 / arm64。服务器只需要 Docker Engine、Docker Compose v2 和 curl，**不用 clone 源码，也不用安装 Node 或 Go**。
+直接使用已发布的 Docker Hub 镜像 `maodeyu/portpilot:0.1.3`，支持 amd64 / arm64。服务器只需要 Docker Engine、Docker Compose v2 和 curl，**不用 clone 源码，也不用安装 Node 或 Go**。
 
 在服务器下载一份 Compose 文件即可启动：
 
@@ -60,7 +60,8 @@ docker compose up -d --wait
 - 源中消失的节点保留端口、标记失效；再次出现时恢复原映射。
 - 两种协议共用账号密码，支持包含特殊字符的凭据和 IPv6 入口。
 - 导出 HTTP / SOCKS5H 地址，预览和下载 Mihomo YAML。
-- 对接同机 Mihomo 控制器、应用配置、真实连接延迟测试。
+- 对接同机 Mihomo 控制器、应用配置；支持行内单节点、勾选批量和全部连接测试，只更新参与测试的节点结果。
+- 同时展示固定代理入口、节点服务器地址与实际出口 IP；出口 IP 支持逐节点查询、复制、刷新与查询时间记录。
 - 操作日志、管理密码登录、首次访问设置密码、原子文件存储、敏感数据与源码分离。
 - 蓝白主题、可收起的侧边栏与手机布局，地址复制同时兼容本机和局域网 HTTP 面板。
 - Go 后端 + React 前端，前端嵌入单个可执行文件，运行时不依赖 Node。
@@ -184,6 +185,7 @@ PORTPILOT_ADMIN_PASSWORD='请替换为至少12位的管理密码' \
 - 分享链接支持 VLESS、VMess（Base64 JSON）、Shadowsocks（SIP002 / 旧版）、SSR、Trojan、AnyTLS、Hysteria、Hysteria2 / HY2、TUIC v5、HTTP / HTTPS、SOCKS / SOCKS5 / SOCKS5H。VLESS / VMess / Trojan 支持 TCP、WS、HTTP、H2、gRPC、HTTPUpgrade；保留适用协议的 TLS / Reality、SNI、ALPN、指纹与认证参数。其他协议和传输方式请使用 Mihomo YAML。
 - 「添加节点」的“识别并转换”只预览，不保存或连接上游；可跳过转换直接导入。端口留空时自动分配，填写时按输入顺序连续分配。格式错误、重名或端口冲突会取消整批操作，不会保存部分节点。
 - 连接测试测量内核访问测试 URL 的延迟，**不代表公网端口已放行或出口 IP 已核实**。
+- 「实际出口 IP」通过对应节点的本机认证代理入口查询 [ipify](https://www.ipify.org/)，支持 IPv4 / IPv6。查询前需启用节点并应用配置；结果按查询时间展示，节点配置变更或订阅同步后会清除，查询失败不会使用本机直连结果代替。
 - 控制器地址或密钥变更后，需同步修改内核启动配置。后续应用通过 `PUT /configs` 热加载；不管理内核进程的启动、停止和升级。
 
 ## 测试

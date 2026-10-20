@@ -2,7 +2,7 @@
 name: portpilot
 
 x-portpilot: &portpilot
-  image: ${PORTPILOT_IMAGE_REPOSITORY:-maodeyu/portpilot}:${PORTPILOT_IMAGE_TAG:-0.1.2}
+  image: ${PORTPILOT_IMAGE_REPOSITORY:-maodeyu/portpilot}:${PORTPILOT_IMAGE_TAG:-0.1.3}
   user: "10001:10001"
   read_only: true
   security_opt:

@@ -26,6 +26,7 @@ type App struct {
 	sessionKey    []byte
 	applyMu       sync.Mutex
 	testMu        sync.Mutex
+	exitIPURL     string
 	loginMu       sync.Mutex
 	loginFailures map[string][]time.Time
 }
@@ -35,7 +36,7 @@ func NewApp(store *Store, password string) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &App{store: store, syncer: &Synchronizer{store: store}, auth: auth, sessionKey: []byte(randomID()), loginFailures: map[string][]time.Time{}}, nil
+	return &App{store: store, syncer: &Synchronizer{store: store}, auth: auth, sessionKey: []byte(randomID()), exitIPURL: exitIPServiceURL, loginFailures: map[string][]time.Time{}}, nil
 }
 
 func (a *App) SetupRequired() bool { return a.auth.setupRequired() }
@@ -120,6 +121,7 @@ func (a *App) Handler(assets fs.FS) http.Handler {
 	mux.HandleFunc("PATCH /api/nodes/{id}", a.editNode)
 	mux.HandleFunc("DELETE /api/nodes/{id}", a.deleteNode)
 	mux.HandleFunc("POST /api/nodes/batch", a.batchNodes)
+	mux.HandleFunc("POST /api/nodes/{id}/exit-ip", a.nodeExitIP)
 	mux.HandleFunc("POST /api/nodes/test", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			IDs []string `json:"ids"`
@@ -500,9 +502,15 @@ func (a *App) editNode(w http.ResponseWriter, r *http.Request) {
 				if err := checkPort(st, *body.Port, n.ID); err != nil {
 					return err
 				}
+				if n.Port != *body.Port {
+					n.clearExitIP()
+				}
 				n.Port = *body.Port
 			}
 			if body.Enabled != nil {
+				if n.Enabled != *body.Enabled {
+					n.clearExitIP()
+				}
 				n.Enabled = *body.Enabled
 			}
 			if proxy != nil {
@@ -515,6 +523,7 @@ func (a *App) editNode(w http.ResponseWriter, r *http.Request) {
 				n.Latency = nil
 				n.TestedAt = nil
 				n.TestError = ""
+				n.clearExitIP()
 			}
 			st.Revision++
 			st.event("info", "节点映射已更新："+n.Name)
@@ -569,6 +578,9 @@ func (a *App) batchNodes(w http.ResponseWriter, r *http.Request) {
 		count := 0
 		for i := range st.Nodes {
 			if ids[st.Nodes[i].ID] {
+				if st.Nodes[i].Enabled != body.Enabled {
+					st.Nodes[i].clearExitIP()
+				}
 				st.Nodes[i].Enabled = body.Enabled
 				count++
 			}

@@ -70,7 +70,7 @@ func main() {
 	if strings.HasPrefix(display, ":") {
 		display = "127.0.0.1" + display
 	}
-	log.Printf("PortPilot v0.1.2 · http://%s", display)
+	log.Printf("PortPilot v0.1.3 · http://%s", display)
 	if app.SetupRequired() {
 		log.Print("首次启动：请访问面板设置管理密码")
 	}

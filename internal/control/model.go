@@ -36,19 +36,22 @@ type Subscription struct {
 }
 
 type Node struct {
-	ID             string         `json:"id"`
-	SubscriptionID string         `json:"subscriptionId"`
-	SourceName     string         `json:"sourceName"`
-	Name           string         `json:"name"`
-	Type           string         `json:"type"`
-	Server         string         `json:"server"`
-	Port           int            `json:"port"`
-	Enabled        bool           `json:"enabled"`
-	Available      bool           `json:"available"`
-	Latency        *int           `json:"latency"`
-	TestedAt       *time.Time     `json:"testedAt"`
-	TestError      string         `json:"testError,omitempty"`
-	Config         map[string]any `json:"config"`
+	ID              string         `json:"id"`
+	SubscriptionID  string         `json:"subscriptionId"`
+	SourceName      string         `json:"sourceName"`
+	Name            string         `json:"name"`
+	Type            string         `json:"type"`
+	Server          string         `json:"server"`
+	Port            int            `json:"port"`
+	Enabled         bool           `json:"enabled"`
+	Available       bool           `json:"available"`
+	Latency         *int           `json:"latency"`
+	TestedAt        *time.Time     `json:"testedAt"`
+	TestError       string         `json:"testError,omitempty"`
+	ExitIP          string         `json:"exitIp,omitempty"`
+	ExitIPCheckedAt *time.Time     `json:"exitIpCheckedAt,omitempty"`
+	ExitIPError     string         `json:"exitIpError,omitempty"`
+	Config          map[string]any `json:"config"`
 }
 
 type Event struct {
